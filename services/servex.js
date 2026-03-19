@@ -37,7 +37,8 @@ async function apiRequest(endpoint, options = {}) {
  */
 export async function listClients() {
   const data = await apiRequest('/api/clients');
-  return Array.isArray(data) ? data : data.data || [];
+  // ServeX retorna { clients: [...], total, page, limit }
+  return data.clients || [];
 }
 
 /**
