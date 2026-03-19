@@ -1,0 +1,438 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Painel IPTV - RaioFlix + ServeX</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <style>
+    body { background: #0f172a; }
+    .glass { background: rgba(30, 41, 59, 0.8); backdrop-filter: blur(10px); }
+  </style>
+</head>
+<body class="min-h-screen text-white">
+  <div id="app"></div>
+
+  <script>
+    // State
+    const state = {
+      activeTab: 'dashboard',
+      raioflix: { customers: [], servers: [], packages: [], resellers: [] },
+      servex: { clients: [], categories: [] },
+      loading: false,
+      modal: null,
+      form: {}
+    };
+
+    // API Helper
+    async function api(endpoint, options = {}) {
+      const res = await fetch(endpoint, {
+        ...options,
+        headers: { 'Content-Type': 'application/json', ...options.headers }
+      });
+      return res.json();
+    }
+
+    // Load data
+    async function loadData() {
+      state.loading = true;
+      render();
+      
+      try {
+        const [rf, sx, stats] = await Promise.all([
+          api('/api/raioflix/customers'),
+          api('/api/servex/clients'),
+          api('/api/stats')
+        ]);
+        
+        state.raioflix.customers = rf.data || [];
+        state.servex.clients = sx.data || [];
+        state.stats = stats.data;
+      } catch (e) {
+        console.error('Erro ao carregar dados:', e);
+      }
+      
+      state.loading = false;
+      render();
+    }
+
+    // Create customer
+    async function createRaioFlixCustomer(data) {
+      try {
+        await api('/api/raioflix/customers', {
+          method: 'POST',
+          body: JSON.stringify(data)
+        });
+        state.modal = null;
+        loadData();
+      } catch (e) {
+        alert('Erro: ' + e.message);
+      }
+    }
+
+    async function createServeXClient(data) {
+      try {
+        await api('/api/servex/clients', {
+          method: 'POST',
+          body: JSON.stringify(data)
+        });
+        state.modal = null;
+        loadData();
+      } catch (e) {
+        alert('Erro: ' + e.message);
+      }
+    }
+
+    // Delete
+    async function deleteRaioFlixCustomer(id) {
+      if (!confirm('Tem certeza?')) return;
+      await api(`/api/raioflix/customers/${id}`, { method: 'DELETE' });
+      loadData();
+    }
+
+    async function deleteServeXClient(id) {
+      if (!confirm('Tem certeza?')) return;
+      await api(`/api/servex/clients/${id}`, { method: 'DELETE' });
+      loadData();
+    }
+
+    // Render
+    function render() {
+      const app = document.getElementById('app');
+      
+      app.innerHTML = `
+        <div class="min-h-screen">
+          <!-- Header -->
+          <header class="glass border-b border-slate-700 sticky top-0 z-50">
+            <div class="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
+              <div class="flex items-center gap-3">
+                <div class="w-10 h-10 bg-gradient-to-br from-cyan-500 to-blue-600 rounded-xl flex items-center justify-center">
+                  <i data-lucide="tv" class="w-5 h-5"></i>
+                </div>
+                <div>
+                  <h1 class="font-bold text-lg">Painel IPTV</h1>
+                  <p class="text-xs text-slate-400">RaioFlix + ServeX</p>
+                </div>
+              </div>
+              <div class="flex items-center gap-2">
+                <span class="text-xs text-slate-400">${new Date().toLocaleDateString('pt-BR')}</span>
+              </div>
+            </div>
+          </header>
+
+          <!-- Tabs -->
+          <div class="max-w-7xl mx-auto px-4 pt-6">
+            <div class="flex gap-2 border-b border-slate-700">
+              ${['dashboard', 'raioflix', 'servex'].map(tab => `
+                <button onclick="state.activeTab='${tab}'; render();" 
+                  class="px-4 py-2 font-medium transition-colors ${state.activeTab === tab 
+                    ? 'text-cyan-400 border-b-2 border-cyan-400' 
+                    : 'text-slate-400 hover:text-white'}">
+                  ${tab === 'dashboard' ? '📊 Dashboard' : tab === 'raioflix' ? '📺 RaioFlix (TV)' : '🌐 ServeX (Internet)'}
+                </button>
+              `).join('')}
+            </div>
+          </div>
+
+          <!-- Content -->
+          <main class="max-w-7xl mx-auto px-4 py-6">
+            ${state.loading ? '<div class="text-center py-12"><div class="animate-spin w-8 h-8 border-2 border-cyan-400 border-t-transparent rounded-full mx-auto"></div></div>' : renderContent()}
+          </main>
+        </div>
+
+        ${state.modal ? renderModal() : ''}
+      `;
+
+      lucide.createIcons();
+    }
+
+    function renderContent() {
+      switch (state.activeTab) {
+        case 'dashboard': return renderDashboard();
+        case 'raioflix': return renderRaioFlix();
+        case 'servex': return renderServeX();
+        default: return '';
+      }
+    }
+
+    function renderDashboard() {
+      const stats = state.stats || {};
+      
+      return `
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+          <div class="glass rounded-xl p-6 border border-slate-700">
+            <div class="text-slate-400 text-sm mb-1">Total Clientes</div>
+            <div class="text-3xl font-bold text-cyan-400">${stats.total?.clients || 0}</div>
+          </div>
+          <div class="glass rounded-xl p-6 border border-slate-700">
+            <div class="text-slate-400 text-sm mb-1">Clientes Ativos</div>
+            <div class="text-3xl font-bold text-green-400">${stats.total?.active || 0}</div>
+          </div>
+          <div class="glass rounded-xl p-6 border border-slate-700">
+            <div class="text-slate-400 text-sm mb-1">RaioFlix (TV)</div>
+            <div class="text-3xl font-bold text-purple-400">${stats.raioflix?.totalClients || 0}</div>
+          </div>
+          <div class="glass rounded-xl p-6 border border-slate-700">
+            <div class="text-slate-400 text-sm mb-1">ServeX (Internet)</div>
+            <div class="text-3xl font-bold text-blue-400">${stats.servex?.totalClients || 0}</div>
+          </div>
+        </div>
+
+        <div class="grid md:grid-cols-2 gap-6">
+          <!-- RaioFlix recent -->
+          <div class="glass rounded-xl p-6 border border-slate-700">
+            <h3 class="font-bold mb-4 flex items-center gap-2">
+              <i data-lucide="tv" class="w-5 h-5 text-purple-400"></i>
+              RaioFlix - Últimos Clientes
+            </h3>
+            <div class="space-y-2">
+              ${(state.raioflix.customers || []).slice(0, 5).map(c => `
+                <div class="flex items-center justify-between p-3 bg-slate-800/50 rounded-lg">
+                  <div>
+                    <div class="font-medium">${c.username}</div>
+                    <div class="text-xs text-slate-400">${c.status || 'active'}</div>
+                  </div>
+                  <span class="px-2 py-1 rounded text-xs ${c.status === 'active' ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}">
+                    ${c.status || 'active'}
+                  </span>
+                </div>
+              `).join('') || '<div class="text-slate-400 text-center py-4">Nenhum cliente</div>'}
+            </div>
+          </div>
+
+          <!-- ServeX recent -->
+          <div class="glass rounded-xl p-6 border border-slate-700">
+            <h3 class="font-bold mb-4 flex items-center gap-2">
+              <i data-lucide="wifi" class="w-5 h-5 text-blue-400"></i>
+              ServeX - Últimos Clientes
+            </h3>
+            <div class="space-y-2">
+              ${(state.servex.clients || []).slice(0, 5).map(c => `
+                <div class="flex items-center justify-between p-3 bg-slate-800/50 rounded-lg">
+                  <div>
+                    <div class="font-medium">${c.username}</div>
+                    <div class="text-xs text-slate-400">${c.type || 'user'}</div>
+                  </div>
+                  <span class="px-2 py-1 rounded text-xs ${c.status === 'active' ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}">
+                    ${c.status || 'active'}
+                  </span>
+                </div>
+              `).join('') || '<div class="text-slate-400 text-center py-4">Nenhum cliente</div>'}
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    function renderRaioFlix() {
+      const customers = state.raioflix.customers || [];
+      
+      return `
+        <div class="flex items-center justify-between mb-6">
+          <h2 class="text-xl font-bold">Clientes RaioFlix (TV)</h2>
+          <button onclick="state.modal='raioflix-new'; render();" 
+            class="px-4 py-2 bg-cyan-600 hover:bg-cyan-500 rounded-lg font-medium transition-colors flex items-center gap-2">
+            <i data-lucide="plus" class="w-4 h-4"></i> Novo Cliente
+          </button>
+        </div>
+
+        <div class="glass rounded-xl border border-slate-700 overflow-hidden">
+          <table class="w-full">
+            <thead class="bg-slate-800/50">
+              <tr>
+                <th class="px-4 py-3 text-left text-sm font-medium text-slate-400">Username</th>
+                <th class="px-4 py-3 text-left text-sm font-medium text-slate-400">Servidor</th>
+                <th class="px-4 py-3 text-left text-sm font-medium text-slate-400">Conexões</th>
+                <th class="px-4 py-3 text-left text-sm font-medium text-slate-400">Status</th>
+                <th class="px-4 py-3 text-left text-sm font-medium text-slate-400">Expira</th>
+                <th class="px-4 py-3 text-right text-sm font-medium text-slate-400">Ações</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-700">
+              ${customers.map(c => `
+                <tr class="hover:bg-slate-800/30">
+                  <td class="px-4 py-3 font-medium">${c.username}</td>
+                  <td class="px-4 py-3 text-slate-400">${c.server_name || '-'}</td>
+                  <td class="px-4 py-3">${c.connections || 1}</td>
+                  <td class="px-4 py-3">
+                    <span class="px-2 py-1 rounded text-xs ${c.status === 'active' ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}">
+                      ${c.status || 'active'}
+                    </span>
+                  </td>
+                  <td class="px-4 py-3 text-slate-400">${c.exp_date ? new Date(c.exp_date).toLocaleDateString('pt-BR') : '-'}</td>
+                  <td class="px-4 py-3 text-right">
+                    <button onclick="deleteRaioFlixCustomer('${c.id}')" class="p-2 hover:bg-red-500/20 rounded text-red-400">
+                      <i data-lucide="trash-2" class="w-4 h-4"></i>
+                    </button>
+                  </td>
+                </tr>
+              `).join('') || '<tr><td colspan="6" class="px-4 py-8 text-center text-slate-400">Nenhum cliente cadastrado</td></tr>'}
+            </tbody>
+          </table>
+        </div>
+      `;
+    }
+
+    function renderServeX() {
+      const clients = state.servex.clients || [];
+      
+      return `
+        <div class="flex items-center justify-between mb-6">
+          <h2 class="text-xl font-bold">Clientes ServeX (Internet)</h2>
+          <button onclick="state.modal='servex-new'; render();" 
+            class="px-4 py-2 bg-cyan-600 hover:bg-cyan-500 rounded-lg font-medium transition-colors flex items-center gap-2">
+            <i data-lucide="plus" class="w-4 h-4"></i> Novo Cliente
+          </button>
+        </div>
+
+        <div class="glass rounded-xl border border-slate-700 overflow-hidden">
+          <table class="w-full">
+            <thead class="bg-slate-800/50">
+              <tr>
+                <th class="px-4 py-3 text-left text-sm font-medium text-slate-400">Username</th>
+                <th class="px-4 py-3 text-left text-sm font-medium text-slate-400">Tipo</th>
+                <th class="px-4 py-3 text-left text-sm font-medium text-slate-400">Conexões</th>
+                <th class="px-4 py-3 text-left text-sm font-medium text-slate-400">Status</th>
+                <th class="px-4 py-3 text-left text-sm font-medium text-slate-400">Expira</th>
+                <th class="px-4 py-3 text-right text-sm font-medium text-slate-400">Ações</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-700">
+              ${clients.map(c => `
+                <tr class="hover:bg-slate-800/30">
+                  <td class="px-4 py-3 font-medium">${c.username}</td>
+                  <td class="px-4 py-3">
+                    <span class="px-2 py-1 rounded text-xs ${c.type === 'test' ? 'bg-yellow-500/20 text-yellow-400' : 'bg-blue-500/20 text-blue-400'}">
+                      ${c.type || 'user'}
+                    </span>
+                  </td>
+                  <td class="px-4 py-3">${c.connection_limit || 1}</td>
+                  <td class="px-4 py-3">
+                    <span class="px-2 py-1 rounded text-xs ${c.status === 'active' ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}">
+                      ${c.status || 'active'}
+                    </span>
+                  </td>
+                  <td class="px-4 py-3 text-slate-400">${c.exp_date ? new Date(c.exp_date).toLocaleDateString('pt-BR') : '-'}</td>
+                  <td class="px-4 py-3 text-right">
+                    <button onclick="deleteServeXClient('${c.id}')" class="p-2 hover:bg-red-500/20 rounded text-red-400">
+                      <i data-lucide="trash-2" class="w-4 h-4"></i>
+                    </button>
+                  </td>
+                </tr>
+              `).join('') || '<tr><td colspan="6" class="px-4 py-8 text-center text-slate-400">Nenhum cliente cadastrado</td></tr>'}
+            </tbody>
+          </table>
+        </div>
+      `;
+    }
+
+    function renderModal() {
+      if (state.modal === 'raioflix-new') {
+        return `
+          <div class="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
+            <div class="glass rounded-xl p-6 max-w-md w-full border border-slate-700">
+              <h3 class="text-xl font-bold mb-6">Novo Cliente RaioFlix</h3>
+              <form id="rf-form" class="space-y-4">
+                <div>
+                  <label class="block text-sm text-slate-400 mb-1">Username</label>
+                  <input type="text" name="username" required class="w-full bg-slate-800 border border-slate-600 rounded-lg px-4 py-2 text-white">
+                </div>
+                <div>
+                  <label class="block text-sm text-slate-400 mb-1">Password</label>
+                  <input type="text" name="password" required class="w-full bg-slate-800 border border-slate-600 rounded-lg px-4 py-2 text-white">
+                </div>
+                <div>
+                  <label class="block text-sm text-slate-400 mb-1">Servidor</label>
+                  <select name="server_id" required class="w-full bg-slate-800 border border-slate-600 rounded-lg px-4 py-2 text-white">
+                    <option value="BV4D3rLaqZ">RAIO FLIX BLACK</option>
+                    <option value="rlKWO3Wzo7">RAIO FLIX ULTRA</option>
+                    <option value="RYAWRk1jlx">RAIOFLIX GOLD</option>
+                  </select>
+                </div>
+                <div>
+                  <label class="block text-sm text-slate-400 mb-1">Pacote</label>
+                  <select name="package_id" required class="w-full bg-slate-800 border border-slate-600 rounded-lg px-4 py-2 text-white">
+                    <option value="Yen129WPEa">TESTE APLICATIVOS PARCEIROS</option>
+                    <option value="BV4D3rLaqZ">TESTE COMPLETO</option>
+                    <option value="ZVdWXjL3qk">TESTE ULTRA COMPLETO</option>
+                    <option value="B0VDVALK3q">TESTE GRATIS C/ADULTO</option>
+                  </select>
+                </div>
+                <div>
+                  <label class="block text-sm text-slate-400 mb-1">Conexões</label>
+                  <input type="number" name="connections" value="1" min="1" class="w-full bg-slate-800 border border-slate-600 rounded-lg px-4 py-2 text-white">
+                </div>
+                <div class="flex gap-3 pt-4">
+                  <button type="button" onclick="state.modal=null; render();" class="flex-1 px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg font-medium transition-colors">Cancelar</button>
+                  <button type="submit" class="flex-1 px-4 py-2 bg-cyan-600 hover:bg-cyan-500 rounded-lg font-medium transition-colors">Criar</button>
+                </div>
+              </form>
+            </div>
+          </div>
+        `;
+      }
+      
+      if (state.modal === 'servex-new') {
+        return `
+          <div class="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
+            <div class="glass rounded-xl p-6 max-w-md w-full border border-slate-700">
+              <h3 class="text-xl font-bold mb-6">Novo Cliente ServeX</h3>
+              <form id="sx-form" class="space-y-4">
+                <div>
+                  <label class="block text-sm text-slate-400 mb-1">Username (apenas letras e números)</label>
+                  <input type="text" name="username" required pattern="[a-zA-Z0-9]+" class="w-full bg-slate-800 border border-slate-600 rounded-lg px-4 py-2 text-white">
+                </div>
+                <div>
+                  <label class="block text-sm text-slate-400 mb-1">Password (apenas letras e números)</label>
+                  <input type="text" name="password" required pattern="[a-zA-Z0-9]+" class="w-full bg-slate-800 border border-slate-600 rounded-lg px-4 py-2 text-white">
+                </div>
+                <div>
+                  <label class="block text-sm text-slate-400 mb-1">Tipo</label>
+                  <select name="type" class="w-full bg-slate-800 border border-slate-600 rounded-lg px-4 py-2 text-white">
+                    <option value="user">Usuário (dias)</option>
+                    <option value="test">Teste (minutos)</option>
+                  </select>
+                </div>
+                <div>
+                  <label class="block text-sm text-slate-400 mb-1">Duração (dias ou minutos)</label>
+                  <input type="number" name="duration" value="30" min="1" class="w-full bg-slate-800 border border-slate-600 rounded-lg px-4 py-2 text-white">
+                </div>
+                <div>
+                  <label class="block text-sm text-slate-400 mb-1">Conexões</label>
+                  <input type="number" name="connection_limit" value="1" min="1" class="w-full bg-slate-800 border border-slate-600 rounded-lg px-4 py-2 text-white">
+                </div>
+                <div class="flex gap-3 pt-4">
+                  <button type="button" onclick="state.modal=null; render();" class="flex-1 px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg font-medium transition-colors">Cancelar</button>
+                  <button type="submit" class="flex-1 px-4 py-2 bg-cyan-600 hover:bg-cyan-500 rounded-lg font-medium transition-colors">Criar</button>
+                </div>
+              </form>
+            </div>
+          </div>
+        `;
+      }
+      
+      return '';
+    }
+
+    // Form handlers
+    document.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const form = e.target;
+      const data = Object.fromEntries(new FormData(form));
+      
+      if (form.id === 'rf-form') {
+        await createRaioFlixCustomer(data);
+      } else if (form.id === 'sx-form') {
+        data.duration = parseInt(data.duration);
+        data.connection_limit = parseInt(data.connection_limit);
+        await createServeXClient(data);
+      }
+    });
+
+    // Init
+    loadData();
+    setInterval(loadData, 60000); // Refresh every minute
+  </script>
+</body>
+</html>
