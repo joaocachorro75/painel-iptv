@@ -1,5 +1,8 @@
 FROM node:20-alpine
 
+# Instalar curl para sincronização
+RUN apk add --no-cache curl
+
 WORKDIR /app
 
 COPY package*.json ./
