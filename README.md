@@ -5,10 +5,45 @@ Painel para gerenciar clientes RaioFlix (TV/IPTV) e ServeX (Internet/VPN) em um 
 ## Funcionalidades
 
 - 📊 Dashboard com estatísticas unificadas
-- 📺 Gerenciamento de clientes RaioFlix
-- 📡 Gerenciamento de clientes ServeX
+- 📺 Gerenciamento de clientes RaioFlix (TV)
+- 📡 Gerenciamento de clientes ServeX (Internet)
+- 🔐 Sistema de login com hierarquia multi-nível
+- 👥 Criação automática de revendas em todos os provedores
+- 💰 Sistema de créditos unificado
 - ➕ Criar, listar e excluir clientes
-- 🔄 Sincronização em tempo real
+- 🔄 Sincronização automática entre provedores
+
+## Hierarquia
+
+```
+Super Admin (João)
+    │
+    ├── Master
+    │       │
+    │       ├── Revenda
+    │       │       └── Clientes
+    │       │
+    │       └── Clientes
+    │
+    └── Revenda
+            └── Clientes
+```
+
+## Provedores Suportados
+
+| Provedor | Tipo | Status |
+|----------|------|--------|
+| RaioFlix | TV/IPTV | ✅ Ativo |
+| ServeX | Internet/VPN | ✅ Ativo |
+
+**Fácil de adicionar novos provedores no futuro!**
+
+## Login Padrão
+
+```
+Usuário: joao
+Senha: Joao123@
+```
 
 ## Deploy no EasyPanel
 
@@ -21,6 +56,7 @@ Painel para gerenciar clientes RaioFlix (TV/IPTV) e ServeX (Internet/VPN) em um 
    - `SERVEX_API_KEY` - API key do ServeX
    - `SERVEX_CATEGORY_ID` - Categoria (padrão: 200)
    - `PAINEL_PORT` - Porta (padrão: 3480)
+   - `JWT_SECRET` - Chave secreta para tokens JWT
 
 4. Deploy!
 
@@ -61,10 +97,39 @@ painel-iptv/
 ├── server.js              # Backend Express
 ├── services/
 │   ├── raioflix.js        # API RaioFlix
-│   └── servex.js          # API ServeX
+│   ├── servex.js          # API ServeX
+│   ├── database.js        # Banco SQLite + funções de usuário
+│   ├── auth.js            # Autenticação JWT
+│   └── providerSync.js    # Sincronização entre provedores
 ├── public/
 │   └── index.html         # Frontend React
 ├── cloudflare-worker.js   # Relay para RaioFlix
 ├── Dockerfile             # Deploy EasyPanel
 └── wrangler.toml          # Config Cloudflare
 ```
+
+## API Endpoints
+
+### Autenticação
+- `POST /api/auth/login` - Login
+- `GET /api/auth/me` - Dados do usuário logado
+
+### Usuários
+- `GET /api/users` - Listar subordinados
+- `POST /api/users` - Criar usuário (sincroniza com provedores)
+- `GET /api/users/:id` - Detalhes do usuário
+- `PUT /api/users/:id` - Atualizar usuário
+- `DELETE /api/users/:id` - Deletar usuário
+
+### Créditos
+- `GET /api/credits` - Saldo atual
+- `GET /api/credits/history` - Histórico
+- `POST /api/credits/transfer` - Transferir para subordinado
+
+### Provedores
+- `GET /api/providers` - Listar provedores ativos
+- `POST /api/providers/:provider/customers` - Criar cliente em provedor específico
+
+---
+
+*Última atualização: 2026-03-20*

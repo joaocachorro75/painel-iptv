@@ -9,6 +9,7 @@ import RaioFlix from './services/raioflix.js';
 import ServeX from './services/servex.js';
 import db from './services/database.js';
 import { authMiddleware, roleMiddleware, login, register } from './services/auth.js';
+import { syncCreateReseller, syncCreateClient, getActiveProviders, getUserProviderMapping } from './services/providerSync.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -100,6 +101,13 @@ app.post('/api/users', authMiddleware, async (req, res) => {
     }
     
     const newUser = register(req.user, { username, password, email, name, role, credits });
+    
+    // Se for revenda, sincronizar com provedores
+    if (role === 'revenda' || role === 'master') {
+      const syncResults = await syncCreateReseller(newUser, { username, password, name, credits });
+      newUser.providerSync = syncResults;
+    }
+    
     res.json({ success: true, data: newUser });
   } catch (error) {
     res.status(400).json({ success: false, error: error.message });
@@ -368,6 +376,33 @@ app.delete('/api/servex/clients/:id', authMiddleware, async (req, res) => {
   try {
     await ServeX.deleteClient(req.params.id);
     res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// ==========================================
+// PROVIDERS - GESTÃO DE PROVEDORES
+// ==========================================
+
+// Listar provedores ativos
+app.get('/api/providers', authMiddleware, (req, res) => {
+  try {
+    const providers = getActiveProviders();
+    res.json({ success: true, data: providers });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Criar cliente em provedor específico
+app.post('/api/providers/:provider/customers', authMiddleware, async (req, res) => {
+  try {
+    const { provider } = req.params;
+    const clientData = req.body;
+    
+    const result = await syncCreateClient(req.user.id, provider, clientData);
+    res.json({ success: true, data: result });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
   }

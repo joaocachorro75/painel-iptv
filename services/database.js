@@ -64,6 +64,40 @@ if (!superAdminExists) {
   console.log('✅ Super Admin criado: joao / Joao123@');
 }
 
+// Criar tabelas de mapeamento de provedores se não existirem
+db.exec(`
+  -- Mapeamento de usuários nos provedores externos
+  CREATE TABLE IF NOT EXISTS user_providers (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    provider VARCHAR(50) NOT NULL,
+    external_id VARCHAR(100),
+    external_username VARCHAR(100),
+    external_password VARCHAR(100),
+    external_token TEXT,
+    synced_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    UNIQUE(user_id, provider)
+  );
+
+  -- Configuração de provedores ativos
+  CREATE TABLE IF NOT EXISTS active_providers (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name VARCHAR(50) UNIQUE NOT NULL,
+    type VARCHAR(20) NOT NULL,
+    enabled BOOLEAN DEFAULT true,
+    priority INTEGER DEFAULT 1,
+    config JSON
+  );
+`);
+
+// Inserir provedores padrão
+db.prepare(`
+  INSERT OR IGNORE INTO active_providers (name, type, enabled, priority) VALUES
+  ('raioflix', 'tv', 1, 1),
+  ('servex', 'internet', 1, 2)
+`).run();
+
 // ==========================================
 // FUNÇÕES DE USUÁRIO
 // ==========================================
