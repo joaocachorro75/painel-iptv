@@ -439,13 +439,25 @@ app.get('/api/stats', authMiddleware, async (req, res) => {
     let raioflixStats;
     try {
       raioflixStats = await RaioFlix.getStats();
+      // Se retornou vazio (erro), usar cache
+      if (raioflixStats.totalClients === 0 && raioFlixCache.customers.length > 0) {
+        raioflixStats = {
+          enabled: true,
+          totalClients: raioFlixCache.customers.length,
+          activeClients: raioFlixCache.customers.filter(c => c.status === 'ACTIVE' || c.status === 'active').length,
+          expiredClients: raioFlixCache.customers.filter(c => c.status === 'EXPIRED' || c.status === 'expired').length,
+          totalResellers: raioFlixCache.resellers.length,
+          fromCache: true,
+          lastSync: raioFlixCache.lastSync
+        };
+      }
     } catch (e) {
       // Usar cache se API falhar
       raioflixStats = {
         enabled: true,
         totalClients: raioFlixCache.customers.length,
-        activeClients: raioFlixCache.customers.filter(c => c.status === 'active').length,
-        expiredClients: raioFlixCache.customers.filter(c => c.status === 'expired').length,
+        activeClients: raioFlixCache.customers.filter(c => c.status === 'ACTIVE' || c.status === 'active').length,
+        expiredClients: raioFlixCache.customers.filter(c => c.status === 'EXPIRED' || c.status === 'expired').length,
         totalResellers: raioFlixCache.resellers.length,
         fromCache: true,
         lastSync: raioFlixCache.lastSync
