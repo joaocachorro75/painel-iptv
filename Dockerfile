@@ -7,9 +7,10 @@ RUN npm install --production
 
 COPY . .
 
-EXPOSE 3480
+EXPOSE 3000
 
 ENV NODE_ENV=production
-ENV PAINEL_PORT=3480
+ENV PORT=3000
+ENV PAINEL_PORT=3000
 
 CMD ["node", "server.js"]

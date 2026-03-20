@@ -12,7 +12,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
-const PORT = process.env.PAINEL_PORT || 3480;
+const PORT = process.env.PORT || process.env.PAINEL_PORT || 3000;
 
 // Middleware
 app.use(express.json());
