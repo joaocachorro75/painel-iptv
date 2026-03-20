@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Painel IPTV - RaioFlix + ServeX</title>
+  <title>Painel Unificado - RaioFlix + ServeX</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
   <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
@@ -20,9 +20,39 @@
   <div id="root"></div>
 
   <script type="text/babel">
-    const { useState, useEffect } = React;
+    const { useState, useEffect, createContext, useContext } = React;
 
-    // Ícones simples
+    // Auth Context
+    const AuthContext = createContext(null);
+
+    // API Helper
+    const api = {
+      token: localStorage.getItem('token'),
+      
+      async request(method, url, data = null) {
+        const options = {
+          method,
+          headers: {
+            'Content-Type': 'application/json',
+            ...(this.token ? { 'Authorization': `Bearer ${this.token}` } : {})
+          }
+        };
+        if (data) options.body = JSON.stringify(data);
+        
+        const res = await fetch(url, options);
+        const json = await res.json();
+        
+        if (!res.ok) throw new Error(json.error || 'Erro na requisição');
+        return json;
+      },
+      
+      get: (url) => api.request('GET', url),
+      post: (url, data) => api.request('POST', url, data),
+      put: (url, data) => api.request('PUT', url, data),
+      delete: (url) => api.request('DELETE', url)
+    };
+
+    // Ícones
     const Icons = {
       TV: () => <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><rect x="2" y="7" width="20" height="15" rx="2" strokeWidth="2"/><path d="M17 2l-5 5-5-5" strokeWidth="2"/></svg>,
       Wifi: () => <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M5 12.55a11 11 0 0114.08 0M8.53 16.11a6 6 0 016.95 0M12 20h.01" strokeWidth="2"/></svg>,
@@ -31,19 +61,97 @@
       Trash: () => <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2" strokeWidth="2"/></svg>,
       Refresh: () => <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M23 4v6h-6M1 20v-6h6M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15" strokeWidth="2"/></svg>,
       X: () => <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12" strokeWidth="2"/></svg>,
+      Logout: () => <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9" strokeWidth="2"/></svg>,
+      Dollar: () => <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M12 1v22M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6" strokeWidth="2"/></svg>,
     };
 
     // Modal Component
-    function Modal({ isOpen, onClose, title, children }) {
+    function Modal({ isOpen, onClose, title, children, size = 'lg' }) {
       if (!isOpen) return null;
+      const sizeClass = size === 'sm' ? 'max-w-md' : size === 'lg' ? 'max-w-2xl' : 'max-w-lg';
       return (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4">
-          <div className="bg-gray-800 rounded-xl p-6 max-w-lg w-full max-h-[90vh] overflow-y-auto">
+          <div className={`bg-gray-800 rounded-xl p-6 w-full ${sizeClass} max-h-[90vh] overflow-y-auto`}>
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-xl font-bold">{title}</h2>
               <button onClick={onClose} className="text-gray-400 hover:text-white"><Icons.X /></button>
             </div>
             {children}
+          </div>
+        </div>
+      );
+    }
+
+    // Login Screen
+    function LoginScreen({ onLogin }) {
+      const [username, setUsername] = useState('');
+      const [password, setPassword] = useState('');
+      const [loading, setLoading] = useState(false);
+      const [error, setError] = useState('');
+
+      const handleLogin = async (e) => {
+        e.preventDefault();
+        setLoading(true);
+        setError('');
+        
+        try {
+          const res = await api.post('/api/auth/login', { username, password });
+          localStorage.setItem('token', res.token);
+          api.token = res.token;
+          onLogin(res.user);
+        } catch (err) {
+          setError(err.message);
+        }
+        
+        setLoading(false);
+      };
+
+      return (
+        <div className="min-h-screen flex items-center justify-center p-4">
+          <div className="bg-gray-800 rounded-2xl p-8 w-full max-w-md">
+            <div className="text-center mb-8">
+              <div className="w-16 h-16 bg-gradient-to-br from-cyan-500 to-purple-600 rounded-xl flex items-center justify-center font-bold text-2xl mx-auto mb-4">
+                PF
+              </div>
+              <h1 className="text-2xl font-bold">Painel Unificado</h1>
+              <p className="text-gray-400 mt-2">RaioFlix + ServeX</p>
+            </div>
+            
+            <form onSubmit={handleLogin} className="space-y-4">
+              {error && <div className="bg-red-500/20 text-red-400 p-3 rounded-lg text-sm">{error}</div>}
+              
+              <div>
+                <label className="block text-sm text-gray-400 mb-1">Usuário</label>
+                <input 
+                  type="text" 
+                  value={username}
+                  onChange={e => setUsername(e.target.value)}
+                  className="w-full bg-gray-700 border border-gray-600 rounded-lg p-3 text-white"
+                  placeholder="Seu usuário"
+                  required
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm text-gray-400 mb-1">Senha</label>
+                <input 
+                  type="password"
+                  value={password}
+                  onChange={e => setPassword(e.target.value)}
+                  className="w-full bg-gray-700 border border-gray-600 rounded-lg p-3 text-white"
+                  placeholder="Sua senha"
+                  required
+                />
+              </div>
+              
+              <button 
+                type="submit"
+                disabled={loading}
+                className="w-full bg-cyan-600 hover:bg-cyan-500 disabled:bg-gray-600 rounded-lg p-3 font-medium transition"
+              >
+                {loading ? 'Entrando...' : 'Entrar'}
+              </button>
+            </form>
           </div>
         </div>
       );
@@ -78,37 +186,186 @@
               <div className="text-3xl font-bold">{stats?.servex?.totalClients || 0}</div>
             </div>
           </div>
-
-          <div className="grid md:grid-cols-2 gap-6">
-            <div className="bg-gray-800 rounded-xl p-6">
-              <div className="flex items-center gap-2 mb-4">
-                <Icons.TV /> <span className="font-semibold">RaioFlix - TV/IPTV</span>
-              </div>
-              <div className="space-y-2 text-sm">
-                <div className="flex justify-between"><span className="text-gray-400">Clientes:</span> <span>{stats?.raioflix?.totalClients || 0}</span></div>
-                <div className="flex justify-between"><span className="text-gray-400">Ativos:</span> <span className="text-green-400">{stats?.raioflix?.activeClients || 0}</span></div>
-                <div className="flex justify-between"><span className="text-gray-400">Expirados:</span> <span className="text-red-400">{stats?.raioflix?.expiredClients || 0}</span></div>
-                <div className="flex justify-between"><span className="text-gray-400">Revendas:</span> <span>{stats?.raioflix?.totalResellers || 0}</span></div>
-              </div>
-            </div>
-
-            <div className="bg-gray-800 rounded-xl p-6">
-              <div className="flex items-center gap-2 mb-4">
-                <Icons.Wifi /> <span className="font-semibold">ServeX - Internet/VPN</span>
-              </div>
-              <div className="space-y-2 text-sm">
-                <div className="flex justify-between"><span className="text-gray-400">Clientes:</span> <span>{stats?.servex?.totalClients || 0}</span></div>
-                <div className="flex justify-between"><span className="text-gray-400">Ativos:</span> <span className="text-green-400">{stats?.servex?.activeClients || 0}</span></div>
-                <div className="flex justify-between"><span className="text-gray-400">Expirados:</span> <span className="text-red-400">{stats?.servex?.expiredClients || 0}</span></div>
-                <div className="flex justify-between"><span className="text-gray-400">Testes:</span> <span className="text-yellow-400">{stats?.servex?.testClients || 0}</span></div>
-              </div>
-            </div>
-          </div>
         </div>
       );
     }
 
-    // Clientes RaioFlix Component
+    // Users Management
+    function UsersTab({ user }) {
+      const [users, setUsers] = useState([]);
+      const [loading, setLoading] = useState(true);
+      const [showModal, setShowModal] = useState(false);
+      const [form, setForm] = useState({ username: '', password: '', name: '', email: '', role: 'revenda', credits: 0 });
+      const [syncStatus, setSyncStatus] = useState(null);
+
+      const loadUsers = async () => {
+        setLoading(true);
+        try {
+          const res = await api.get('/api/users');
+          setUsers(res.data || []);
+        } catch (e) {
+          console.error('Erro ao carregar:', e);
+        }
+        setLoading(false);
+      };
+
+      useEffect(() => { loadUsers(); }, []);
+
+      const createUser = async () => {
+        try {
+          setSyncStatus({ status: 'syncing', message: 'Criando usuário e sincronizando com provedores...' });
+          const res = await api.post('/api/users', form);
+          
+          if (res.data?.providerSync) {
+            const syncs = res.data.providerSync;
+            const successCount = syncs.filter(s => s.success).length;
+            const total = syncs.length;
+            setSyncStatus({ 
+              status: 'success', 
+              message: `Criado com sucesso! Sincronizado em ${successCount}/${total} provedores.` 
+            });
+          }
+          
+          setShowModal(false);
+          loadUsers();
+          setForm({ username: '', password: '', name: '', email: '', role: 'revenda', credits: 0 });
+          
+          setTimeout(() => setSyncStatus(null), 5000);
+        } catch (e) {
+          setSyncStatus({ status: 'error', message: e.message });
+        }
+      };
+
+      const deleteUser = async (id) => {
+        if (!confirm('Excluir este usuário?')) return;
+        try {
+          await api.delete(`/api/users/${id}`);
+          loadUsers();
+        } catch (e) {
+          console.error('Erro ao excluir:', e);
+        }
+      };
+
+      const canCreateRole = (targetRole) => {
+        const levels = { super_admin: 1, ultra_master: 2, master: 3, revenda: 4, cliente: 5 };
+        const canCreate = { super_admin: ['ultra_master', 'master', 'revenda', 'cliente'], ultra_master: ['master', 'revenda', 'cliente'], master: ['revenda', 'cliente'], revenda: ['cliente'] };
+        return canCreate[user.role]?.includes(targetRole) || false;
+      };
+
+      const roleLabels = {
+        super_admin: 'Super Admin',
+        ultra_master: 'Ultra Master',
+        master: 'Master',
+        revenda: 'Revenda',
+        cliente: 'Cliente'
+      };
+
+      return (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <h2 className="text-2xl font-bold">Usuários</h2>
+            <div className="flex gap-2">
+              <button onClick={loadUsers} className="p-2 bg-gray-700 rounded-lg hover:bg-gray-600"><Icons.Refresh /></button>
+              <button onClick={() => setShowModal(true)} className="flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-500 rounded-lg"><Icons.Plus /> Novo</button>
+            </div>
+          </div>
+
+          {syncStatus && (
+            <div className={`p-4 rounded-lg ${syncStatus.status === 'success' ? 'bg-green-500/20 text-green-400' : syncStatus.status === 'error' ? 'bg-red-500/20 text-red-400' : 'bg-yellow-500/20 text-yellow-400'}`}>
+              {syncStatus.message}
+            </div>
+          )}
+
+          {loading ? (
+            <div className="text-center py-8 text-gray-400">Carregando...</div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-gray-800">
+                  <tr>
+                    <th className="text-left p-3">Usuário</th>
+                    <th className="text-left p-3">Nome</th>
+                    <th className="text-left p-3">Nível</th>
+                    <th className="text-left p-3">Créditos</th>
+                    <th className="text-left p-3">Status</th>
+                    <th className="text-right p-3">Ações</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {users.map(u => (
+                    <tr key={u.id} className="border-b border-gray-800 hover:bg-gray-800/50">
+                      <td className="p-3 font-mono">{u.username}</td>
+                      <td className="p-3">{u.name || '-'}</td>
+                      <td className="p-3">
+                        <span className="px-2 py-1 rounded text-xs bg-purple-500/20 text-purple-400">
+                          {roleLabels[u.role] || u.role}
+                        </span>
+                      </td>
+                      <td className="p-3">
+                        <span className="flex items-center gap-1"><Icons.Dollar />{u.credits || 0}</span>
+                      </td>
+                      <td className="p-3">
+                        <span className={`px-2 py-1 rounded text-xs ${u.status === 'active' ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}>
+                          {u.status || 'active'}
+                        </span>
+                      </td>
+                      <td className="p-3 text-right">
+                        {u.id !== user.id && (
+                          <button onClick={() => deleteUser(u.id)} className="p-1 text-red-400 hover:text-red-300"><Icons.Trash /></button>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              {users.length === 0 && <div className="text-center py-8 text-gray-400">Nenhum usuário encontrado</div>}
+            </div>
+          )}
+
+          <Modal isOpen={showModal} onClose={() => setShowModal(false)} title="Novo Usuário">
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm text-gray-400 mb-1">Usuário</label>
+                  <input type="text" value={form.username} onChange={e => setForm({...form, username: e.target.value})} className="w-full bg-gray-700 border border-gray-600 rounded-lg p-2.5 text-white" />
+                </div>
+                <div>
+                  <label className="block text-sm text-gray-400 mb-1">Senha</label>
+                  <input type="text" value={form.password} onChange={e => setForm({...form, password: e.target.value})} className="w-full bg-gray-700 border border-gray-600 rounded-lg p-2.5 text-white" />
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm text-gray-400 mb-1">Nome</label>
+                <input type="text" value={form.name} onChange={e => setForm({...form, name: e.target.value})} className="w-full bg-gray-700 border border-gray-600 rounded-lg p-2.5 text-white" />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm text-gray-400 mb-1">Nível</label>
+                  <select value={form.role} onChange={e => setForm({...form, role: e.target.value})} className="w-full bg-gray-700 border border-gray-600 rounded-lg p-2.5 text-white">
+                    {Object.entries(roleLabels).map(([key, label]) => (
+                      canCreateRole(key) && <option key={key} value={key}>{label}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm text-gray-400 mb-1">Créditos</label>
+                  <input type="number" value={form.credits} onChange={e => setForm({...form, credits: parseFloat(e.target.value) || 0})} className="w-full bg-gray-700 border border-gray-600 rounded-lg p-2.5 text-white" />
+                </div>
+              </div>
+              <div className="bg-gray-700/50 p-3 rounded-lg text-sm text-gray-400">
+                <strong>⚡ Sincronização:</strong> Se for revenda/master, será criado automaticamente em RaioFlix + ServeX.
+              </div>
+              <div className="flex gap-2 pt-4">
+                <button onClick={() => setShowModal(false)} className="flex-1 px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg">Cancelar</button>
+                <button onClick={createUser} className="flex-1 px-4 py-2 bg-purple-600 hover:bg-purple-500 rounded-lg">Criar</button>
+              </div>
+            </div>
+          </Modal>
+        </div>
+      );
+    }
+
+    // RaioFlix Clients
     function RaioFlixClients() {
       const [clients, setClients] = useState([]);
       const [loading, setLoading] = useState(true);
@@ -118,9 +375,8 @@
       const loadClients = async () => {
         setLoading(true);
         try {
-          const res = await fetch('/api/raioflix/customers');
-          const data = await res.json();
-          setClients(data.data || []);
+          const res = await api.get('/api/raioflix/customers');
+          setClients(res.data || []);
         } catch (e) {
           console.error('Erro ao carregar:', e);
         }
@@ -131,16 +387,10 @@
 
       const createClient = async () => {
         try {
-          const res = await fetch('/api/raioflix/customers', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(form)
-          });
-          if (res.ok) {
-            setShowModal(false);
-            loadClients();
-            setForm({ username: '', password: '', server_id: 'BV4D3rLaqZ', package_id: 'Yen129WPEa', connections: 1 });
-          }
+          await api.post('/api/raioflix/customers', form);
+          setShowModal(false);
+          loadClients();
+          setForm({ username: '', password: '', server_id: 'BV4D3rLaqZ', package_id: 'Yen129WPEa', connections: 1 });
         } catch (e) {
           console.error('Erro ao criar:', e);
         }
@@ -149,7 +399,7 @@
       const deleteClient = async (id) => {
         if (!confirm('Excluir este cliente?')) return;
         try {
-          await fetch(`/api/raioflix/customers/${id}`, { method: 'DELETE' });
+          await api.delete(`/api/raioflix/customers/${id}`);
           loadClients();
         } catch (e) {
           console.error('Erro ao excluir:', e);
@@ -159,7 +409,7 @@
       return (
         <div className="space-y-4">
           <div className="flex items-center justify-between">
-            <h2 className="text-2xl font-bold">Clientes RaioFlix (TV)</h2>
+            <h2 className="text-2xl font-bold">RaioFlix (TV)</h2>
             <div className="flex gap-2">
               <button onClick={loadClients} className="p-2 bg-gray-700 rounded-lg hover:bg-gray-600"><Icons.Refresh /></button>
               <button onClick={() => setShowModal(true)} className="flex items-center gap-2 px-4 py-2 bg-cyan-600 hover:bg-cyan-500 rounded-lg"><Icons.Plus /> Novo</button>
@@ -175,7 +425,6 @@
                   <tr>
                     <th className="text-left p-3">Usuário</th>
                     <th className="text-left p-3">Servidor</th>
-                    <th className="text-left p-3">Conexões</th>
                     <th className="text-left p-3">Status</th>
                     <th className="text-left p-3">Expira</th>
                     <th className="text-right p-3">Ações</th>
@@ -186,7 +435,6 @@
                     <tr key={client.id || client._id} className="border-b border-gray-800 hover:bg-gray-800/50">
                       <td className="p-3 font-mono">{client.username}</td>
                       <td className="p-3">{client.server_name || client.server_id}</td>
-                      <td className="p-3">{client.connections}</td>
                       <td className="p-3">
                         <span className={`px-2 py-1 rounded text-xs ${client.status === 'active' ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}>
                           {client.status || 'N/A'}
@@ -206,13 +454,15 @@
 
           <Modal isOpen={showModal} onClose={() => setShowModal(false)} title="Novo Cliente RaioFlix">
             <div className="space-y-4">
-              <div>
-                <label className="block text-sm text-gray-400 mb-1">Usuário</label>
-                <input type="text" value={form.username} onChange={e => setForm({...form, username: e.target.value})} className="w-full bg-gray-700 border border-gray-600 rounded-lg p-2.5 text-white" />
-              </div>
-              <div>
-                <label className="block text-sm text-gray-400 mb-1">Senha</label>
-                <input type="text" value={form.password} onChange={e => setForm({...form, password: e.target.value})} className="w-full bg-gray-700 border border-gray-600 rounded-lg p-2.5 text-white" />
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm text-gray-400 mb-1">Usuário</label>
+                  <input type="text" value={form.username} onChange={e => setForm({...form, username: e.target.value})} className="w-full bg-gray-700 border border-gray-600 rounded-lg p-2.5 text-white" />
+                </div>
+                <div>
+                  <label className="block text-sm text-gray-400 mb-1">Senha</label>
+                  <input type="text" value={form.password} onChange={e => setForm({...form, password: e.target.value})} className="w-full bg-gray-700 border border-gray-600 rounded-lg p-2.5 text-white" />
+                </div>
               </div>
               <div>
                 <label className="block text-sm text-gray-400 mb-1">Servidor</label>
@@ -228,12 +478,7 @@
                   <option value="Yen129WPEa">TESTE APLICATIVOS PARCEIROS</option>
                   <option value="BV4D3rLaqZ">TESTE COMPLETO</option>
                   <option value="ZVdWXjL3qk">TESTE ULTRA COMPLETO</option>
-                  <option value="B0VDVALK3q">TESTE GRATIS C/ADULTO</option>
                 </select>
-              </div>
-              <div>
-                <label className="block text-sm text-gray-400 mb-1">Conexões</label>
-                <input type="number" value={form.connections} onChange={e => setForm({...form, connections: parseInt(e.target.value)})} className="w-full bg-gray-700 border border-gray-600 rounded-lg p-2.5 text-white" min="1" max="10" />
               </div>
               <div className="flex gap-2 pt-4">
                 <button onClick={() => setShowModal(false)} className="flex-1 px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg">Cancelar</button>
@@ -245,7 +490,7 @@
       );
     }
 
-    // Clientes ServeX Component
+    // ServeX Clients
     function ServeXClients() {
       const [clients, setClients] = useState([]);
       const [loading, setLoading] = useState(true);
@@ -255,9 +500,8 @@
       const loadClients = async () => {
         setLoading(true);
         try {
-          const res = await fetch('/api/servex/clients');
-          const data = await res.json();
-          setClients(data.data || []);
+          const res = await api.get('/api/servex/clients');
+          setClients(res.data || []);
         } catch (e) {
           console.error('Erro ao carregar:', e);
         }
@@ -268,16 +512,10 @@
 
       const createClient = async () => {
         try {
-          const res = await fetch('/api/servex/clients', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(form)
-          });
-          if (res.ok) {
-            setShowModal(false);
-            loadClients();
-            setForm({ username: '', password: '', duration: 30, type: 'user', connection_limit: 1 });
-          }
+          await api.post('/api/servex/clients', form);
+          setShowModal(false);
+          loadClients();
+          setForm({ username: '', password: '', duration: 30, type: 'user', connection_limit: 1 });
         } catch (e) {
           console.error('Erro ao criar:', e);
         }
@@ -286,7 +524,7 @@
       const deleteClient = async (id) => {
         if (!confirm('Excluir este cliente?')) return;
         try {
-          await fetch(`/api/servex/clients/${id}`, { method: 'DELETE' });
+          await api.delete(`/api/servex/clients/${id}`);
           loadClients();
         } catch (e) {
           console.error('Erro ao excluir:', e);
@@ -296,7 +534,7 @@
       return (
         <div className="space-y-4">
           <div className="flex items-center justify-between">
-            <h2 className="text-2xl font-bold">Clientes ServeX (Internet)</h2>
+            <h2 className="text-2xl font-bold">ServeX (Internet)</h2>
             <div className="flex gap-2">
               <button onClick={loadClients} className="p-2 bg-gray-700 rounded-lg hover:bg-gray-600"><Icons.Refresh /></button>
               <button onClick={() => setShowModal(true)} className="flex items-center gap-2 px-4 py-2 bg-orange-600 hover:bg-orange-500 rounded-lg"><Icons.Plus /> Novo</button>
@@ -312,7 +550,6 @@
                   <tr>
                     <th className="text-left p-3">Usuário</th>
                     <th className="text-left p-3">Tipo</th>
-                    <th className="text-left p-3">Conexões</th>
                     <th className="text-left p-3">Status</th>
                     <th className="text-left p-3">Expira</th>
                     <th className="text-right p-3">Ações</th>
@@ -320,22 +557,21 @@
                 </thead>
                 <tbody>
                   {clients.map(client => (
-                    <tr key={client.id || client._id} className="border-b border-gray-800 hover:bg-gray-800/50">
+                    <tr key={client.id} className="border-b border-gray-800 hover:bg-gray-800/50">
                       <td className="p-3 font-mono">{client.username}</td>
                       <td className="p-3">
                         <span className={`px-2 py-1 rounded text-xs ${client.type === 'test' ? 'bg-yellow-500/20 text-yellow-400' : 'bg-blue-500/20 text-blue-400'}`}>
                           {client.type || 'user'}
                         </span>
                       </td>
-                      <td className="p-3">{client.connection_limit}</td>
                       <td className="p-3">
                         <span className={`px-2 py-1 rounded text-xs ${client.status === 'active' ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}>
                           {client.status || 'N/A'}
                         </span>
                       </td>
-                      <td className="p-3">{client.exp_date ? new Date(client.exp_date).toLocaleDateString('pt-BR') : 'N/A'}</td>
+                      <td className="p-3">{client.expiration_date ? new Date(client.expiration_date).toLocaleDateString('pt-BR') : 'N/A'}</td>
                       <td className="p-3 text-right">
-                        <button onClick={() => deleteClient(client.id || client._id)} className="p-1 text-red-400 hover:text-red-300"><Icons.Trash /></button>
+                        <button onClick={() => deleteClient(client.id)} className="p-1 text-red-400 hover:text-red-300"><Icons.Trash /></button>
                       </td>
                     </tr>
                   ))}
@@ -347,28 +583,28 @@
 
           <Modal isOpen={showModal} onClose={() => setShowModal(false)} title="Novo Cliente ServeX">
             <div className="space-y-4">
-              <div>
-                <label className="block text-sm text-gray-400 mb-1">Usuário (só letras e números)</label>
-                <input type="text" value={form.username} onChange={e => setForm({...form, username: e.target.value.replace(/[^a-zA-Z0-9]/g, '')})} className="w-full bg-gray-700 border border-gray-600 rounded-lg p-2.5 text-white" />
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm text-gray-400 mb-1">Usuário</label>
+                  <input type="text" value={form.username} onChange={e => setForm({...form, username: e.target.value.replace(/[^a-zA-Z0-9]/g, '')})} className="w-full bg-gray-700 border border-gray-600 rounded-lg p-2.5 text-white" />
+                </div>
+                <div>
+                  <label className="block text-sm text-gray-400 mb-1">Senha</label>
+                  <input type="text" value={form.password} onChange={e => setForm({...form, password: e.target.value.replace(/[^a-zA-Z0-9]/g, '')})} className="w-full bg-gray-700 border border-gray-600 rounded-lg p-2.5 text-white" />
+                </div>
               </div>
-              <div>
-                <label className="block text-sm text-gray-400 mb-1">Senha (só letras e números)</label>
-                <input type="text" value={form.password} onChange={e => setForm({...form, password: e.target.value.replace(/[^a-zA-Z0-9]/g, '')})} className="w-full bg-gray-700 border border-gray-600 rounded-lg p-2.5 text-white" />
-              </div>
-              <div>
-                <label className="block text-sm text-gray-400 mb-1">Tipo</label>
-                <select value={form.type} onChange={e => setForm({...form, type: e.target.value})} className="w-full bg-gray-700 border border-gray-600 rounded-lg p-2.5 text-white">
-                  <option value="user">Usuário (dias)</option>
-                  <option value="test">Teste (minutos)</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm text-gray-400 mb-1">Duração ({form.type === 'test' ? 'minutos' : 'dias'})</label>
-                <input type="number" value={form.duration} onChange={e => setForm({...form, duration: parseInt(e.target.value)})} className="w-full bg-gray-700 border border-gray-600 rounded-lg p-2.5 text-white" />
-              </div>
-              <div>
-                <label className="block text-sm text-gray-400 mb-1">Limite de Conexões</label>
-                <input type="number" value={form.connection_limit} onChange={e => setForm({...form, connection_limit: parseInt(e.target.value)})} className="w-full bg-gray-700 border border-gray-600 rounded-lg p-2.5 text-white" min="1" max="10" />
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm text-gray-400 mb-1">Tipo</label>
+                  <select value={form.type} onChange={e => setForm({...form, type: e.target.value})} className="w-full bg-gray-700 border border-gray-600 rounded-lg p-2.5 text-white">
+                    <option value="user">Usuário (dias)</option>
+                    <option value="test">Teste (minutos)</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm text-gray-400 mb-1">Duração ({form.type === 'test' ? 'min' : 'dias'})</label>
+                  <input type="number" value={form.duration} onChange={e => setForm({...form, duration: parseInt(e.target.value)})} className="w-full bg-gray-700 border border-gray-600 rounded-lg p-2.5 text-white" />
+                </div>
               </div>
               <div className="flex gap-2 pt-4">
                 <button onClick={() => setShowModal(false)} className="flex-1 px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg">Cancelar</button>
@@ -382,20 +618,51 @@
 
     // Main App
     function App() {
+      const [user, setUser] = useState(null);
       const [tab, setTab] = useState('dashboard');
       const [stats, setStats] = useState(null);
+      const [loading, setLoading] = useState(true);
+
+      useEffect(() => {
+        // Check if already logged in
+        const token = localStorage.getItem('token');
+        if (token) {
+          api.token = token;
+          api.get('/api/auth/me')
+            .then(res => setUser(res.user))
+            .catch(() => localStorage.removeItem('token'))
+            .finally(() => setLoading(false));
+        } else {
+          setLoading(false);
+        }
+      }, []);
 
       const loadStats = async () => {
         try {
-          const res = await fetch('/api/stats');
-          const data = await res.json();
-          setStats(data.data);
+          const res = await api.get('/api/stats');
+          setStats(res.data);
         } catch (e) {
           console.error('Erro ao carregar stats:', e);
         }
       };
 
-      useEffect(() => { loadStats(); }, []);
+      useEffect(() => {
+        if (user) loadStats();
+      }, [user]);
+
+      const logout = () => {
+        localStorage.removeItem('token');
+        api.token = null;
+        setUser(null);
+      };
+
+      if (loading) {
+        return <div className="min-h-screen flex items-center justify-center"><div className="text-xl">Carregando...</div></div>;
+      }
+
+      if (!user) {
+        return <LoginScreen onLogin={setUser} />;
+      }
 
       return (
         <div className="min-h-screen">
@@ -404,24 +671,34 @@
             <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 bg-gradient-to-br from-cyan-500 to-purple-600 rounded-lg flex items-center justify-center font-bold">
-                  IPTV
+                  PF
                 </div>
                 <div>
                   <div className="font-bold">Painel Unificado</div>
-                  <div className="text-xs text-gray-400">RaioFlix + ServeX</div>
+                  <div className="text-xs text-gray-400">{user.name || user.username} • {user.role}</div>
                 </div>
+              </div>
+              <div className="flex items-center gap-4">
+                <div className="flex items-center gap-1 text-sm bg-gray-700 px-3 py-1.5 rounded-lg">
+                  <Icons.Dollar />
+                  <span className="font-medium">{user.credits || 0}</span>
+                </div>
+                <button onClick={logout} className="p-2 text-gray-400 hover:text-white"><Icons.Logout /></button>
               </div>
             </div>
 
             {/* Tabs */}
-            <div className="max-w-7xl mx-auto px-4 flex gap-1">
-              <button onClick={() => setTab('dashboard')} className={`px-4 py-3 text-sm font-medium ${tab === 'dashboard' ? 'tab-active' : 'text-gray-400 hover:text-white'}`}>
+            <div className="max-w-7xl mx-auto px-4 flex gap-1 overflow-x-auto">
+              <button onClick={() => setTab('dashboard')} className={`px-4 py-3 text-sm font-medium whitespace-nowrap ${tab === 'dashboard' ? 'tab-active' : 'text-gray-400 hover:text-white'}`}>
                 📊 Dashboard
               </button>
-              <button onClick={() => setTab('raioflix')} className={`px-4 py-3 text-sm font-medium ${tab === 'raioflix' ? 'tab-active' : 'text-gray-400 hover:text-white'}`}>
+              <button onClick={() => setTab('users')} className={`px-4 py-3 text-sm font-medium whitespace-nowrap ${tab === 'users' ? 'tab-active' : 'text-gray-400 hover:text-white'}`}>
+                👥 Usuários
+              </button>
+              <button onClick={() => setTab('raioflix')} className={`px-4 py-3 text-sm font-medium whitespace-nowrap ${tab === 'raioflix' ? 'tab-active' : 'text-gray-400 hover:text-white'}`}>
                 📺 RaioFlix TV
               </button>
-              <button onClick={() => setTab('servex')} className={`px-4 py-3 text-sm font-medium ${tab === 'servex' ? 'tab-active' : 'text-gray-400 hover:text-white'}`}>
+              <button onClick={() => setTab('servex')} className={`px-4 py-3 text-sm font-medium whitespace-nowrap ${tab === 'servex' ? 'tab-active' : 'text-gray-400 hover:text-white'}`}>
                 📡 ServeX Internet
               </button>
             </div>
@@ -430,6 +707,7 @@
           {/* Content */}
           <main className="max-w-7xl mx-auto px-4 py-6">
             {tab === 'dashboard' && <Dashboard stats={stats} onRefresh={loadStats} />}
+            {tab === 'users' && <UsersTab user={user} />}
             {tab === 'raioflix' && <RaioFlixClients />}
             {tab === 'servex' && <ServeXClients />}
           </main>
