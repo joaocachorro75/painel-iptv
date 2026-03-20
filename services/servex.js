@@ -17,7 +17,7 @@ async function apiRequest(endpoint, options = {}) {
       headers: {
         'Authorization': `Bearer ${API_KEY}`,
         'Content-Type': 'application/json',
-        'Accept:': 'application/json',
+        'Accept': 'application/json',
         ...options.headers
       }
     });

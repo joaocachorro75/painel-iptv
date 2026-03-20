@@ -33,15 +33,18 @@ async function fetchWithProxy(url, options = {}) {
       'Accept': 'application/json',
       'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
       ...options.headers
-    }
+    },
+    timeout: 60000
   };
 
   // Adiciona proxy se configurado
   if (PROXY_URL) {
     try {
+      const { HttpsProxyAgent } = await import('https-proxy-agent');
       fetchOptions.agent = new HttpsProxyAgent(PROXY_URL);
+      console.log('[RaioFlix] Proxy agent criado');
     } catch (e) {
-      console.log('⚠️ Proxy não disponível:', e.message);
+      console.error('[RaioFlix] Erro ao criar proxy agent:', e.message);
     }
   }
 
@@ -49,12 +52,13 @@ async function fetchWithProxy(url, options = {}) {
     const response = await fetch(url, fetchOptions);
     const text = await response.text();
     console.log('[RaioFlix] Response status:', response.status);
+    console.log('[RaioFlix] Response length:', text.length);
     
     // Tenta parsear JSON
     try {
       return JSON.parse(text);
     } catch (e) {
-      console.error('[RaioFlix] Erro ao parsear JSON:', text.substring(0, 100));
+      console.error('[RaioFlix] Erro ao parsear JSON:', text.substring(0, 200));
       throw new Error('Resposta inválida: ' + text.substring(0, 50));
     }
   } catch (e) {

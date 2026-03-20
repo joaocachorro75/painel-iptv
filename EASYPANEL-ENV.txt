@@ -1,0 +1,29 @@
+# ==========================================
+# VARIÁVEIS DE AMBIENTE - PAINEL IPTV
+# ==========================================
+# Copie e cole EXATAMENTE assim no EasyPanel
+
+# --- RIOFLIX ---
+RAIOFLIX_BASE_URL=http://raioflix.sigmab.pro
+RAIOFLIX_PROXY=http://195.114.209.50:80
+RAIOFLIX_ENABLED=true
+RAIOFLIX_USERNAME=JoaoReven
+RAIOFLIX_PASSWORD=Canaisip123@
+
+# --- SERVEX ---
+SERVEX_BASE_URL=https://servex.ws
+SERVEX_API_KEY=sx_6a099e6d4486891b9fe723acdb7cc70cf2074e214623933a30b968332c0b36da
+SERVEX_CATEGORY_ID=200
+
+# --- SERVER ---
+PORT=80
+JWT_SECRET=to-ligado-painel-secreto-2026
+
+# ==========================================
+# INSTRUÇÕES:
+# ==========================================
+# 1. DELETE TODAS as variáveis existentes
+# 2. Adicione APENAS as variáveis acima
+# 3. Clique em SAVE
+# 4. Clique em REDEPLOY
+# ==========================================
