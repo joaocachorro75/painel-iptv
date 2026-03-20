@@ -123,27 +123,27 @@ async function apiRequest(endpoint, options = {}) {
 // ==========================================
 
 export async function listCustomers() {
-  try {
-    console.log('[RaioFlix] Listando clientes...');
-    const data = await apiRequest('/api/customers');
-    console.log('[RaioFlix] Resposta recebida, tipo:', typeof data, Array.isArray(data));
-    
-    let customers = [];
-    if (Array.isArray(data)) {
-      customers = data;
-    } else if (data.data && Array.isArray(data.data)) {
-      customers = data.data;
-    }
-    
-    console.log('[RaioFlix] Total clientes:', customers.length);
-    const filtered = customers.filter(c => c.reseller === USERNAME);
-    console.log('[RaioFlix] Clientes do JoaoReven:', filtered.length);
-    
-    return filtered;
-  } catch (e) {
-    console.error('[RaioFlix] Erro ao listar clientes:', e.message);
-    return [];
+  // Se proxy não está configurado ou desabilitado, lança erro para usar cache
+  if (!ENABLED || !PROXY_URL) {
+    throw new Error('RaioFlix desabilitado ou sem proxy - use cache');
   }
+  
+  console.log('[RaioFlix] Listando clientes...');
+  const data = await apiRequest('/api/customers');
+  console.log('[RaioFlix] Resposta recebida, tipo:', typeof data, Array.isArray(data));
+  
+  let customers = [];
+  if (Array.isArray(data)) {
+    customers = data;
+  } else if (data.data && Array.isArray(data.data)) {
+    customers = data.data;
+  }
+  
+  console.log('[RaioFlix] Total clientes:', customers.length);
+  const filtered = customers.filter(c => c.reseller === USERNAME);
+  console.log('[RaioFlix] Clientes do JoaoReven:', filtered.length);
+  
+  return filtered;
 }
 
 export async function getCustomer(id) {
