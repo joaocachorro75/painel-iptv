@@ -2,6 +2,7 @@ import fetch from 'node-fetch';
 import { HttpsProxyAgent } from 'https-proxy-agent';
 
 // Configurações
+const ENABLED = process.env.RAIOFLIX_ENABLED !== 'false';
 const BASE_URL = process.env.RAIOFLIX_BASE_URL || 'http://raioflix.sigmab.pro';
 const PROXY_URL = process.env.RAIOFLIX_PROXY || '';
 const USERNAME = process.env.RAIOFLIX_USERNAME || 'JoaoReven';
@@ -10,6 +11,13 @@ const PASSWORD = process.env.RAIOFLIX_PASSWORD || 'Canaisip123@';
 // Cache do token
 let cachedToken = null;
 let tokenExpires = null;
+
+/**
+ * Verifica se RaioFlix está habilitado
+ */
+function isEnabled() {
+  return ENABLED && BASE_URL;
+}
 
 /**
  * Limpa resposta do proxy (remove headers de erro do ScraperAPI)
@@ -196,6 +204,17 @@ export async function listPackages() {
 // ==========================================
 
 export async function getStats() {
+  // Se desabilitado, retorna vazio
+  if (!ENABLED) {
+    return {
+      enabled: false,
+      totalClients: 0,
+      activeClients: 0,
+      expiredClients: 0,
+      totalResellers: 0
+    };
+  }
+  
   try {
     const [customers, resellers] = await Promise.all([
       listCustomers(),
@@ -203,23 +222,27 @@ export async function getStats() {
     ]);
     
     return {
+      enabled: true,
       totalClients: customers.length,
       activeClients: customers.filter(c => c.status === 'active').length,
       expiredClients: customers.filter(c => c.status === 'expired').length,
       totalResellers: resellers.length
     };
   } catch (e) {
+    console.error('⚠️ RaioFlix indisponível:', e.message);
     return {
+      enabled: false,
+      error: e.message,
       totalClients: 0,
       activeClients: 0,
       expiredClients: 0,
-      totalResellers: 0,
-      error: e.message
+      totalResellers: 0
     };
   }
 }
 
 export default {
+  isEnabled,
   listCustomers,
   getCustomer,
   createCustomer,
