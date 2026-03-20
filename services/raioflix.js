@@ -1,10 +1,9 @@
-import { HttpsProxyAgent } from 'https-proxy-agent';
 import fetch from 'node-fetch';
+import { HttpsProxyAgent } from 'https-proxy-agent';
 
 // Configurações
 const BASE_URL = process.env.RAIOFLIX_BASE_URL || 'http://raioflix.sigmab.pro';
-const PROXY_URL = process.env.RAIOFLIX_PROXY || 'http://5.161.155.252:80';
-const RELAY_URL = process.env.RAIOFLIX_RELAY || null; // Ex: https://raioflix-relay.seu-usuario.workers.dev
+const PROXY_URL = process.env.RAIOFLIX_PROXY || '';
 const USERNAME = process.env.RAIOFLIX_USERNAME || 'JoaoReven';
 const PASSWORD = process.env.RAIOFLIX_PASSWORD || 'Canaisip123@';
 
@@ -12,23 +11,57 @@ const PASSWORD = process.env.RAIOFLIX_PASSWORD || 'Canaisip123@';
 let cachedToken = null;
 let tokenExpires = null;
 
-// Agent para proxy (fallback)
-let proxyAgent = null;
-try {
-  proxyAgent = new HttpsProxyAgent(PROXY_URL);
-} catch (e) {
-  console.log('Proxy não disponível:', e.message);
+/**
+ * Limpa resposta do proxy (remove headers de erro do ScraperAPI)
+ */
+function cleanProxyResponse(text) {
+  // Remove linhas como "Proxy Authentication Required" ou "Request failed"
+  const lines = text.split('\n');
+  const jsonLines = lines.filter(line => {
+    const trimmed = line.trim();
+    return trimmed.startsWith('{') || 
+           trimmed.startsWith('[') || 
+           trimmed.startsWith('"') ||
+           (trimmed && !trimmed.includes('Proxy') && !trimmed.includes('Request failed'));
+  });
+  return jsonLines.join('\n');
 }
 
 /**
- * Decide qual URL usar (relay ou direta)
+ * Faz request com proxy, tratando resposta
  */
-function getBaseUrl() {
-  if (RELAY_URL) {
-    // Worker repassa direto, sem /relay
-    return RELAY_URL;
+async function fetchWithProxy(url, options = {}) {
+  const fetchOptions = {
+    ...options,
+    headers: {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+      ...options.headers
+    }
+  };
+
+  // Adiciona proxy se configurado
+  if (PROXY_URL) {
+    try {
+      fetchOptions.agent = new HttpsProxyAgent(PROXY_URL);
+    } catch (e) {
+      console.log('⚠️ Proxy não disponível:', e.message);
+    }
   }
-  return BASE_URL;
+
+  const response = await fetch(url, fetchOptions);
+  const text = await response.text();
+  
+  // Limpa resposta do proxy
+  const cleanText = cleanProxyResponse(text);
+  
+  try {
+    return JSON.parse(cleanText);
+  } catch (e) {
+    console.error('❌ Resposta inválida:', text.substring(0, 100));
+    throw new Error('Resposta inválida da API');
+  }
 }
 
 /**
@@ -41,32 +74,24 @@ async function authenticate() {
   }
 
   try {
-    const url = getBaseUrl() + '/api/auth/login';
+    const url = BASE_URL + '/api/auth/login';
     
-    const options = {
+    const data = await fetchWithProxy(url, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ username: USERNAME, password: PASSWORD })
-    };
-
-    // Se não tem relay, usa proxy
-    if (!RELAY_URL && proxyAgent) {
-      options.agent = proxyAgent;
-    }
-
-    const response = await fetch(url, options);
-    const data = await response.json();
+    });
     
     if (data.token) {
       cachedToken = data.token;
       // Token expira em 1 hora
       tokenExpires = Date.now() + 3600000;
+      console.log('✅ RaioFlix autenticado! Créditos:', data.credits);
       return cachedToken;
     }
     
     throw new Error(data.message || 'Token não recebido');
   } catch (error) {
-    console.error('Erro ao autenticar RaioFlix:', error.message);
+    console.error('❌ Erro ao autenticar RaioFlix:', error.message);
     throw error;
   }
 }
@@ -76,31 +101,15 @@ async function authenticate() {
  */
 async function apiRequest(endpoint, options = {}) {
   const token = await authenticate();
-  const url = getBaseUrl() + endpoint;
+  const url = BASE_URL + endpoint;
   
-  const fetchOptions = {
+  return fetchWithProxy(url, {
     ...options,
     headers: {
       'Authorization': `Bearer ${token}`,
-      'Content-Type': 'application/json',
-      'Accept': 'application/json',
       ...options.headers
     }
-  };
-
-  // Se não tem relay, usa proxy
-  if (!RELAY_URL && proxyAgent) {
-    fetchOptions.agent = proxyAgent;
-  }
-
-  const response = await fetch(url, fetchOptions);
-  const data = await response.json();
-  
-  if (!response.ok) {
-    throw new Error(data.message || 'Erro na API RaioFlix');
-  }
-  
-  return data;
+  });
 }
 
 // ==========================================
