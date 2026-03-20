@@ -3,10 +3,13 @@ import { HttpsProxyAgent } from 'https-proxy-agent';
 
 // Configurações
 const ENABLED = process.env.RAIOFLIX_ENABLED !== 'false';
-const BASE_URL = process.env.RAIOFLIX_BASE_URL || 'http://raioflix.sigmab.pro';
-const PROXY_URL = process.env.RAIOFLIX_PROXY || 'http://195.114.209.50:80';
+const BASE_URL = process.env.RAIOFLIX_PROXY_SERVICE || process.env.RAIOFLIX_BASE_URL || 'http://raioflix.sigmab.pro';
+const USE_PROXY_SERVICE = !!process.env.RAIOFLIX_PROXY_SERVICE; // Se true, usa serviço local sem proxy
+const PROXY_URL = USE_PROXY_SERVICE ? null : (process.env.RAIOFLIX_PROXY || '');
 const USERNAME = process.env.RAIOFLIX_USERNAME || 'JoaoReven';
 const PASSWORD = process.env.RAIOFLIX_PASSWORD || 'Canaisip123@';
+
+console.log('[RaioFlix] Config:', { ENABLED, BASE_URL, USE_PROXY_SERVICE, PROXY_URL: PROXY_URL || 'nenhum' });
 
 // Cache do token
 let cachedToken = null;
