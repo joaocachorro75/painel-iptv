@@ -4,7 +4,7 @@ import { HttpsProxyAgent } from 'https-proxy-agent';
 // Configurações
 const ENABLED = process.env.RAIOFLIX_ENABLED !== 'false';
 const BASE_URL = process.env.RAIOFLIX_BASE_URL || 'http://raioflix.sigmab.pro';
-const PROXY_URL = process.env.RAIOFLIX_PROXY || '';
+const PROXY_URL = process.env.RAIOFLIX_PROXY || 'http://195.114.209.50:80';
 const USERNAME = process.env.RAIOFLIX_USERNAME || 'JoaoReven';
 const PASSWORD = process.env.RAIOFLIX_PASSWORD || 'Canaisip123@';
 
@@ -20,23 +20,7 @@ function isEnabled() {
 }
 
 /**
- * Limpa resposta do proxy (remove headers de erro do ScraperAPI)
- */
-function cleanProxyResponse(text) {
-  // Remove linhas como "Proxy Authentication Required" ou "Request failed"
-  const lines = text.split('\n');
-  const jsonLines = lines.filter(line => {
-    const trimmed = line.trim();
-    return trimmed.startsWith('{') || 
-           trimmed.startsWith('[') || 
-           trimmed.startsWith('"') ||
-           (trimmed && !trimmed.includes('Proxy') && !trimmed.includes('Request failed'));
-  });
-  return jsonLines.join('\n');
-}
-
-/**
- * Faz request com proxy, tratando resposta
+ * Faz request com proxy
  */
 async function fetchWithProxy(url, options = {}) {
   const fetchOptions = {
@@ -59,17 +43,7 @@ async function fetchWithProxy(url, options = {}) {
   }
 
   const response = await fetch(url, fetchOptions);
-  const text = await response.text();
-  
-  // Limpa resposta do proxy
-  const cleanText = cleanProxyResponse(text);
-  
-  try {
-    return JSON.parse(cleanText);
-  } catch (e) {
-    console.error('❌ Resposta inválida:', text.substring(0, 100));
-    throw new Error('Resposta inválida da API');
-  }
+  return response.json();
 }
 
 /**
