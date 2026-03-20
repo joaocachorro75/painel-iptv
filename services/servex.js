@@ -36,7 +36,8 @@ async function apiRequest(endpoint, options = {}) {
  * Lista todos os clientes
  */
 export async function listClients() {
-  const data = await apiRequest('/api/clients');
+  // Buscar todos os clientes (aumentar limite para 1000)
+  const data = await apiRequest('/api/clients?limit=1000');
   // ServeX retorna { clients: [...], total, page, limit }
   return data.clients || [];
 }
