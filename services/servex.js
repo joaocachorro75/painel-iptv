@@ -9,23 +9,32 @@ const CATEGORY_ID = process.env.SERVEX_CATEGORY_ID || '200';
  * Helper para fazer requests autenticados
  */
 async function apiRequest(endpoint, options = {}) {
-  const response = await fetch(`${BASE_URL}${endpoint}`, {
-    ...options,
-    headers: {
-      'Authorization': `Bearer ${API_KEY}`,
-      'Content-Type': 'application/json',
-      'Accept': 'application/json',
-      ...options.headers
-    }
-  });
+  console.log('[ServeX] Request para:', `${BASE_URL}${endpoint}`);
+  
+  try {
+    const response = await fetch(`${BASE_URL}${endpoint}`, {
+      ...options,
+      headers: {
+        'Authorization': `Bearer ${API_KEY}`,
+        'Content-Type': 'application/json',
+        'Accept:': 'application/json',
+        ...options.headers
+      }
+    });
 
-  const data = await response.json();
-  
-  if (!response.ok) {
-    throw new Error(data.message || 'Erro na API ServeX');
+    const data = await response.json();
+    console.log('[ServeX] Response status:', response.status);
+    
+    if (!response.ok) {
+      console.error('[ServeX] Erro:', data.message || 'Erro desconhecido');
+      throw new Error(data.message || 'Erro na API ServeX');
+    }
+    
+    return data;
+  } catch (e) {
+    console.error('[ServeX] Erro na request:', e.message);
+    throw e;
   }
-  
-  return data;
 }
 
 // ==========================================

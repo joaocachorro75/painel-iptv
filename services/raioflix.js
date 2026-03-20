@@ -23,6 +23,9 @@ function isEnabled() {
  * Faz request com proxy
  */
 async function fetchWithProxy(url, options = {}) {
+  console.log('[RaioFlix] Request para:', url);
+  console.log('[RaioFlix] Proxy:', PROXY_URL || 'sem proxy');
+  
   const fetchOptions = {
     ...options,
     headers: {
@@ -42,8 +45,22 @@ async function fetchWithProxy(url, options = {}) {
     }
   }
 
-  const response = await fetch(url, fetchOptions);
-  return response.json();
+  try {
+    const response = await fetch(url, fetchOptions);
+    const text = await response.text();
+    console.log('[RaioFlix] Response status:', response.status);
+    
+    // Tenta parsear JSON
+    try {
+      return JSON.parse(text);
+    } catch (e) {
+      console.error('[RaioFlix] Erro ao parsear JSON:', text.substring(0, 100));
+      throw new Error('Resposta inválida: ' + text.substring(0, 50));
+    }
+  } catch (e) {
+    console.error('[RaioFlix] Erro na request:', e.message);
+    throw e;
+  }
 }
 
 /**
@@ -99,11 +116,27 @@ async function apiRequest(endpoint, options = {}) {
 // ==========================================
 
 export async function listCustomers() {
-  const data = await apiRequest('/api/customers');
-  if (Array.isArray(data)) {
-    return data.filter(c => c.reseller === USERNAME);
+  try {
+    console.log('[RaioFlix] Listando clientes...');
+    const data = await apiRequest('/api/customers');
+    console.log('[RaioFlix] Resposta recebida, tipo:', typeof data, Array.isArray(data));
+    
+    let customers = [];
+    if (Array.isArray(data)) {
+      customers = data;
+    } else if (data.data && Array.isArray(data.data)) {
+      customers = data.data;
+    }
+    
+    console.log('[RaioFlix] Total clientes:', customers.length);
+    const filtered = customers.filter(c => c.reseller === USERNAME);
+    console.log('[RaioFlix] Clientes do JoaoReven:', filtered.length);
+    
+    return filtered;
+  } catch (e) {
+    console.error('[RaioFlix] Erro ao listar clientes:', e.message);
+    return [];
   }
-  return data.data?.filter(c => c.reseller === USERNAME) || [];
 }
 
 export async function getCustomer(id) {
