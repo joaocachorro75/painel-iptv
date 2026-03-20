@@ -258,8 +258,19 @@ app.post('/api/credits/add', authMiddleware, roleMiddleware('super_admin'), (req
 // ==========================================
 app.get('/api/raioflix/customers', authMiddleware, async (req, res) => {
   try {
-    const customers = await RaioFlix.listCustomers();
-    res.json({ success: true, data: customers });
+    // Tentar API direta
+    try {
+      const customers = await RaioFlix.listCustomers();
+      res.json({ success: true, data: customers });
+    } catch (e) {
+      // Usar cache se falhar
+      res.json({ 
+        success: true, 
+        data: raioFlixCache.customers,
+        fromCache: true,
+        lastSync: raioFlixCache.lastSync
+      });
+    }
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
   }
@@ -301,8 +312,19 @@ app.delete('/api/raioflix/customers/:id', authMiddleware, async (req, res) => {
 // ==========================================
 app.get('/api/raioflix/resellers', authMiddleware, async (req, res) => {
   try {
-    const resellers = await RaioFlix.listResellers();
-    res.json({ success: true, data: resellers });
+    // Tentar API direta
+    try {
+      const resellers = await RaioFlix.listResellers();
+      res.json({ success: true, data: resellers });
+    } catch (e) {
+      // Usar cache se falhar
+      res.json({ 
+        success: true, 
+        data: raioFlixCache.resellers,
+        fromCache: true,
+        lastSync: raioFlixCache.lastSync
+      });
+    }
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
   }
@@ -413,11 +435,25 @@ app.post('/api/providers/:provider/customers', authMiddleware, async (req, res) 
 // ==========================================
 app.get('/api/stats', authMiddleware, async (req, res) => {
   try {
-    const [raioflixStats, servexStats, userStats] = await Promise.all([
-      RaioFlix.getStats(),
-      ServeX.getStats(),
-      Promise.resolve(db.getStats())
-    ]);
+    // Tentar RaioFlix direto, senão usar cache
+    let raioflixStats;
+    try {
+      raioflixStats = await RaioFlix.getStats();
+    } catch (e) {
+      // Usar cache se API falhar
+      raioflixStats = {
+        enabled: true,
+        totalClients: raioFlixCache.customers.length,
+        activeClients: raioFlixCache.customers.filter(c => c.status === 'active').length,
+        expiredClients: raioFlixCache.customers.filter(c => c.status === 'expired').length,
+        totalResellers: raioFlixCache.resellers.length,
+        fromCache: true,
+        lastSync: raioFlixCache.lastSync
+      };
+    }
+    
+    const servexStats = await ServeX.getStats();
+    const userStats = db.getStats();
     
     res.json({
       success: true,
@@ -434,6 +470,50 @@ app.get('/api/stats', authMiddleware, async (req, res) => {
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
   }
+});
+
+// ==========================================
+// SINCRONIZAÇÃO EXTERNA (para quando proxy não funciona no container)
+// ==========================================
+
+// Cache de dados do RaioFlix (atualizado externamente)
+let raioFlixCache = {
+  customers: [],
+  resellers: [],
+  lastSync: null
+};
+
+// Endpoint para receber dados do RaioFlix (chamado externamente)
+app.post('/api/sync/raioflix', authMiddleware, roleMiddleware('super_admin'), (req, res) => {
+  try {
+    const { customers, resellers } = req.body;
+    
+    raioFlixCache = {
+      customers: customers || [],
+      resellers: resellers || [],
+      lastSync: new Date().toISOString()
+    };
+    
+    console.log(`✅ RaioFlix sincronizado: ${customers?.length || 0} clientes, ${resellers?.length || 0} revendas`);
+    
+    res.json({ 
+      success: true, 
+      message: 'Dados sincronizados',
+      customers: raioFlixCache.customers.length,
+      resellers: raioFlixCache.resellers.length,
+      lastSync: raioFlixCache.lastSync
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Endpoint para obter dados em cache
+app.get('/api/sync/raioflix', authMiddleware, (req, res) => {
+  res.json({
+    success: true,
+    data: raioFlixCache
+  });
 });
 
 // ==========================================
