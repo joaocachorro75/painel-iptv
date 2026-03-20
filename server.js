@@ -25,7 +25,7 @@ if (!fs.existsSync(dataDir)) {
 }
 
 // Middleware
-app.use(express.json());
+app.use(express.json({ limit: '10mb' }));
 app.use(express.static(path.join(__dirname, 'public')));
 
 // ==========================================
@@ -500,13 +500,16 @@ app.post('/api/sync/raioflix', authMiddleware, roleMiddleware('super_admin'), (r
   try {
     const { customers, resellers } = req.body;
     
-    raioFlixCache = {
-      customers: customers || [],
-      resellers: resellers || [],
-      lastSync: new Date().toISOString()
-    };
+    // Se vier lista vazia, mantém o que tem
+    if (customers && customers.length > 0) {
+      raioFlixCache.customers = customers;
+    }
+    if (resellers && resellers.length > 0) {
+      raioFlixCache.resellers = resellers;
+    }
+    raioFlixCache.lastSync = new Date().toISOString();
     
-    console.log(`✅ RaioFlix sincronizado: ${customers?.length || 0} clientes, ${resellers?.length || 0} revendas`);
+    console.log(`✅ RaioFlix sincronizado: ${raioFlixCache.customers.length} clientes, ${raioFlixCache.resellers.length} revendas`);
     
     res.json({ 
       success: true, 
