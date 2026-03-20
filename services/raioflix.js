@@ -25,7 +25,8 @@ try {
  */
 function getBaseUrl() {
   if (RELAY_URL) {
-    return RELAY_URL + '/relay';
+    // Worker repassa direto, sem /relay
+    return RELAY_URL;
   }
   return BASE_URL;
 }
