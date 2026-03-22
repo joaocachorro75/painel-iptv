@@ -645,10 +645,65 @@ app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-// Start server
+// ==========================================
+// START WORKER (Se existir)
+// ==========================================
+import { spawn } from 'child_process';
+import { fileURLToPath as fileURLToPath3 } from 'url';
+const __filename3 = fileURLToPath3(import.meta.url);
+const __dirname3 = path.dirname(__filename3);
+const workerPath = path.join(__dirname3, 'workers', 'raioflix-proxy.js');
+
+if (fs.existsSync(workerPath)) {
+  console.log('[Painel] Iniciando Worker RaioFlix...');
+  const worker = spawn('node', [workerPath], {
+    stdio: 'inherit',
+    env: process.env
+  });
+  
+  worker.on('error', (err) => {
+    console.error('[Painel] Erro no Worker:', err.message);
+  });
+  
+  worker.on('exit', (code) => {
+    console.log(`[Painel] Worker finalizou com código ${code}`);
+  });
+}
+
+// ==========================================
+// START SERVER
+// ==========================================
 app.listen(PORT, () => {
   console.log(`🚀 Painel IPTV rodando na porta ${PORT}`);
   console.log(`📡 RaioFlix: ${process.env.RAIOFLIX_BASE_URL}`);
   console.log(`🌐 ServeX: ${process.env.SERVEX_BASE_URL}`);
   console.log(`👤 Login padrão: joao / Joao123@`);
+  
+  // Sincronização inicial após 5 segundos
+  setTimeout(async () => {
+    try {
+      console.log('[Painel] Sincronização inicial...');
+      const WORKER_URL = process.env.RAIOFLIX_PROXY_WORKER || 'http://localhost:3001';
+      const WORKER_KEY = process.env.RAIOFLIX_PROXY_KEY || 'rf_proxy_key_2026';
+      
+      const response = await fetch(`${WORKER_URL}/sync`, {
+        method: 'GET',
+        headers: { 'X-API-Key': WORKER_KEY }
+      });
+      
+      if (response.ok) {
+        const result = await response.json();
+        if (result.success && result.data) {
+          raioFlixCache.customers = result.data.customers || [];
+          raioFlixCache.resellers = result.data.resellers || [];
+          raioFlixCache.servers = result.data.servers || [];
+          raioFlixCache.packages = result.data.packages || [];
+          raioFlixCache.lastSync = new Date().toISOString();
+          console.log(`✅ Sync inicial: ${raioFlixCache.customers.length} clientes, ${raioFlixCache.resellers.length} revendas`);
+        }
+      }
+    } catch (e) {
+      console.log('[Painel] Sync inicial falhou, usando cache:', e.message);
+    }
+  }, 5000);
 });
