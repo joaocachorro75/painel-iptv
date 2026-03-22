@@ -1,0 +1,35 @@
+version: '3.8'
+
+services:
+  painel:
+    build: .
+    ports:
+      - "80:80"
+    environment:
+      - RAIOFLIX_BASE_URL=http://raioflix.sigmab.pro
+      - RAIOFLIX_PROXY=http://195.114.209.50:80
+      - RAIOFLIX_PROXY_WORKER=http://worker:3001
+      - RAIOFLIX_ENABLED=true
+      - RAIOFLIX_USERNAME=JoaoReven
+      - RAIOFLIX_PASSWORD=Canaisip123@
+      - SERVEX_BASE_URL=https://servex.ws
+      - SERVEX_API_KEY=sx_6a099e6d4486891b9fe723acdb7cc70cf2074e214623933a30b968332c0b36da
+      - SERVEX_CATEGORY_ID=200
+      - PORT=80
+      - JWT_SECRET=to-ligado-painel-secreto-2026
+    depends_on:
+      - worker
+    restart: unless-stopped
+
+  worker:
+    build: ./workers
+    ports:
+      - "3001:3001"
+    environment:
+      - RAIOFLIX_BASE_URL=http://raioflix.sigmab.pro
+      - RAIOFLIX_PROXY=http://195.114.209.50:80
+      - RAIOFLIX_ENABLED=true
+      - RAIOFLIX_USERNAME=JoaoReven
+      - RAIOFLIX_PASSWORD=Canaisip123@
+      - RAIOFLIX_PROXY_KEY=rf_proxy_key_2026
+    restart: unless-stopped
