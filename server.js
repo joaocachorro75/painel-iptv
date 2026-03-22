@@ -23,8 +23,8 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
-// Forçar porta 3480 (evita conflito com Gateway na 18789)
-const PORT = 3480;
+// Usar porta do ambiente ou 3480 como fallback
+const PORT = process.env.PORT || process.env.PAINEL_PORT || 3480;
 
 // Criar pasta data se não existir
 import fs from 'fs';
