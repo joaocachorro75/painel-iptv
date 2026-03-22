@@ -3,8 +3,26 @@
 import json
 import urllib.request
 import os
+import socket
 
-PAINEL_URL = os.environ.get("PAINEL_URL", "https://automacao-painel-tv.nfeujb.easypanel.host")
+# Detecta se está rodando dentro do container
+def is_running_in_container():
+    try:
+        # Se conseguir conectar em localhost:80, está no container
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.settimeout(1)
+        result = sock.connect_ex(('localhost', 80))
+        sock.close()
+        return result == 0
+    except:
+        return False
+
+# Usa localhost se estiver no container, senão URL externa
+if is_running_in_container():
+    PAINEL_URL = "http://localhost"
+else:
+    PAINEL_URL = os.environ.get("PAINEL_URL", "https://automacao-painel-tv.nfeujb.easypanel.host")
+
 RAIOFLIX_PROXY = os.environ.get("RAIOFLIX_PROXY", "http://195.114.209.50:80")
 RAIOFLIX_TOKEN = "1144|pheGJmNyk52gve7KnuiLzoeLBkBQKzJHLWt6AG9I77cfbf8a"
 
