@@ -2,7 +2,15 @@ import express from 'express';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import dotenv from 'dotenv';
-dotenv.config();
+import { fileURLToPath as fileURLToPath2 } from 'url';
+const __filename2 = fileURLToPath2(import.meta.url);
+const __dirname2 = path.dirname(__filename2);
+dotenv.config({ path: path.join(__dirname2, '.env') });
+
+// Forçar porta 3480 se não definida
+if (!process.env.PORT && !process.env.PAINEL_PORT) {
+  process.env.PORT = '3480';
+}
 
 // Services
 import RaioFlix from './services/raioflix.js';
@@ -15,7 +23,8 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
-const PORT = process.env.PORT || process.env.PAINEL_PORT || 3000;
+// Forçar porta 3480 (evita conflito com Gateway na 18789)
+const PORT = 3480;
 
 // Criar pasta data se não existir
 import fs from 'fs';
@@ -339,6 +348,26 @@ app.post('/api/raioflix/resellers', authMiddleware, async (req, res) => {
   }
 });
 
+app.put('/api/raioflix/resellers/:id', authMiddleware, async (req, res) => {
+  try {
+    const result = await RaioFlix.updateReseller(req.params.id, req.body);
+    res.json({ success: true, data: result });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Renovar cliente
+app.put('/api/raioflix/customers/:id/renew', authMiddleware, async (req, res) => {
+  try {
+    const { days } = req.body;
+    const result = await RaioFlix.renewCustomer(req.params.id, days);
+    res.json({ success: true, data: result });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // ==========================================
 // RIOFLIX - SERVIDORES E PACOTES
 // ==========================================
@@ -488,19 +517,19 @@ app.get('/api/stats', authMiddleware, async (req, res) => {
 // SINCRONIZAÇÃO EXTERNA (para quando proxy não funciona no container)
 // ==========================================
 
-// Cache de dados do RaioFlix (atualizado externamente)
+// Cache de dados do RaioFlix (atualizado externamente ou via worker)
 let raioFlixCache = {
   customers: [],
   resellers: [],
   lastSync: null
 };
 
-// Endpoint para receber dados do RaioFlix (chamado externamente)
-app.post('/api/sync/raioflix', authMiddleware, roleMiddleware('super_admin'), (req, res) => {
+// Endpoint para sincronizar via Proxy Worker
+app.post('/api/sync/raioflix', authMiddleware, roleMiddleware('super_admin'), async (req, res) => {
   try {
     const { customers, resellers } = req.body;
     
-    // Se vier lista vazia, mantém o que tem
+    // Se vier dados no body, usa eles (script externo)
     if (customers && customers.length > 0) {
       raioFlixCache.customers = customers;
     }
@@ -523,12 +552,90 @@ app.post('/api/sync/raioflix', authMiddleware, roleMiddleware('super_admin'), (r
   }
 });
 
+// Endpoint para sincronizar automaticamente via Proxy Worker
+app.get('/api/sync/auto', authMiddleware, roleMiddleware('super_admin'), async (req, res) => {
+  try {
+    console.log('[Painel] Iniciando sincronização automática...');
+    
+    const data = await RaioFlix.syncAll();
+    
+    raioFlixCache.customers = data.customers || [];
+    raioFlixCache.resellers = data.resellers || [];
+    raioFlixCache.lastSync = new Date().toISOString();
+    
+    res.json({
+      success: true,
+      message: 'Sincronização automática concluída',
+      customers: raioFlixCache.customers.length,
+      resellers: raioFlixCache.resellers.length,
+      servers: data.servers?.length || 0,
+      packages: data.packages?.length || 0,
+      lastSync: raioFlixCache.lastSync
+    });
+  } catch (error) {
+    console.error('[Painel] Erro na sincronização:', error.message);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // Endpoint para obter dados em cache
 app.get('/api/sync/raioflix', authMiddleware, (req, res) => {
   res.json({
     success: true,
     data: raioFlixCache
   });
+});
+
+// Endpoint para sincronizar AGORA via Worker (chamado pelo frontend)
+app.post('/api/sync/now', authMiddleware, async (req, res) => {
+  try {
+    console.log('[Painel] Sincronização solicitada pelo frontend...');
+    
+    const WORKER_URL = process.env.RAIOFLIX_PROXY_WORKER || 'http://localhost:3001';
+    const WORKER_KEY = process.env.RAIOFLIX_PROXY_KEY || 'rf_proxy_key_2026';
+    
+    // Chamar o Worker
+    const response = await fetch(`${WORKER_URL}/sync`, {
+      method: 'GET',
+      headers: { 'X-API-Key': WORKER_KEY },
+      timeout: 120000
+    });
+    
+    if (!response.ok) {
+      throw new Error(`Worker retornou ${response.status}`);
+    }
+    
+    const result = await response.json();
+    
+    if (result.success && result.data) {
+      raioFlixCache.customers = result.data.customers || [];
+      raioFlixCache.resellers = result.data.resellers || [];
+      raioFlixCache.servers = result.data.servers || [];
+      raioFlixCache.packages = result.data.packages || [];
+      raioFlixCache.lastSync = new Date().toISOString();
+      
+      console.log(`✅ Sincronizado via Worker: ${raioFlixCache.customers.length} clientes`);
+    }
+    
+    res.json({
+      success: true,
+      message: 'Sincronização concluída',
+      customers: raioFlixCache.customers.length,
+      resellers: raioFlixCache.resellers.length,
+      lastSync: raioFlixCache.lastSync
+    });
+  } catch (error) {
+    console.error('[Painel] Erro na sincronização:', error.message);
+    // Retorna sucesso parcial com cache existente
+    res.json({
+      success: true,
+      message: 'Usando cache local (Worker indisponível)',
+      customers: raioFlixCache.customers.length,
+      resellers: raioFlixCache.resellers.length,
+      lastSync: raioFlixCache.lastSync,
+      fromCache: true
+    });
+  }
 });
 
 // ==========================================

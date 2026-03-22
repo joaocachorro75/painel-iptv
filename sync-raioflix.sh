@@ -1,75 +1,42 @@
 #!/bin/bash
-
 # ==========================================
-# SINCRONIZAÇÃO RIOFLIX -> PAINEL
-# ==========================================
-# Este script pega dados do RaioFlix de fora
-# e envia para o painel no EasyPanel
-# 
-# Uso: ./sync-raioflix.sh
+# SINCRONIZAÇÃO RIOFLIX -> PAINEL (via Worker)
 # ==========================================
 
-# Configurações
-RIOFLIX_PROXY="http://195.114.209.50:80"
-RIOFLIX_USER="JoaoReven"
-RIOFLIX_PASS="Canaisip123@"
-RIOFLIX_BASE="http://raioflix.sigmab.pro"
-
-PAINEL_URL="https://automacao-painel-tv.nfeujb.easypanel.host"
-PAINEL_USER="joao"
-PAINEL_PASS="Joao123@"
+WORKER_URL="http://localhost:3001"
+WORKER_KEY="rf_proxy_key_2026"
+PAINEL_URL="${PAINEL_URL:-https://automacao-painel-tv.nfeujb.easypanel.host}"
 
 echo "========================================"
 echo "SINCRONIZAÇÃO RIOFLIX -> PAINEL"
 echo "Data: $(date)"
 echo "========================================"
 
-# 1. Login no RaioFlix
+# 1. Pegar dados do Worker (já busca todas as páginas)
 echo ""
-echo "1. Login no RaioFlix..."
-TOKEN=$(curl -s -x "$RIOFLIX_PROXY" \
-  "$RIOFLIX_BASE/api/auth/login" \
-  -X POST \
-  -H "Content-Type: application/json" \
-  -d "{\"username\":\"$RIOFLIX_USER\",\"password\":\"$RIOFLIX_PASS\"}" \
-  --connect-timeout 30 -m 60 2>&1 | grep -o '"token":"[^"]*"' | cut -d'"' -f4)
+echo "1. Buscando dados do Worker..."
+SYNC_DATA=$(curl -s -H "X-API-Key: $WORKER_KEY" "$WORKER_URL/sync" --connect-timeout 120 -m 180)
 
-if [ -z "$TOKEN" ]; then
-  echo "❌ Erro ao logar no RaioFlix"
+if [ -z "$SYNC_DATA" ]; then
+  echo "❌ Erro ao buscar dados do Worker"
   exit 1
 fi
-echo "✅ Token obtido"
 
-# 2. Pegar clientes
-echo ""
-echo "2. Buscando clientes..."
-CUSTOMERS=$(curl -s -x "$RIOFLIX_PROXY" \
-  "$RIOFLIX_BASE/api/customers" \
-  -H "Authorization: Bearer $TOKEN" \
-  --connect-timeout 30 -m 60 2>&1)
+# Extrair contagem
+CUSTOMERS_COUNT=$(echo "$SYNC_DATA" | python3 -c "import sys,json; d=json.load(sys.stdin); print(len(d.get('data',{}).get('customers',[])))" 2>/dev/null || echo "0")
+RESELLERS_COUNT=$(echo "$SYNC_DATA" | python3 -c "import sys,json; d=json.load(sys.stdin); print(len(d.get('data',{}).get('resellers',[])))" 2>/dev/null || echo "0")
 
-CUSTOMERS_COUNT=$(echo "$CUSTOMERS" | grep -o '"total":[0-9]*' | head -1 | cut -d: -f2)
 echo "✅ $CUSTOMERS_COUNT clientes encontrados"
-
-# 3. Pegar revendas
-echo ""
-echo "3. Buscando revendas..."
-RESELLERS=$(curl -s -x "$RIOFLIX_PROXY" \
-  "$RIOFLIX_BASE/api/resellers" \
-  -H "Authorization: Bearer $TOKEN" \
-  --connect-timeout 30 -m 60 2>&1)
-
-RESELLERS_COUNT=$(echo "$RESELLERS" | grep -o '"total":[0-9]*' | head -1 | cut -d: -f2)
 echo "✅ $RESELLERS_COUNT revendas encontradas"
 
-# 4. Login no Painel
+# 2. Login no Painel
 echo ""
-echo "4. Login no Painel..."
+echo "2. Login no Painel..."
 PAINEL_TOKEN=$(curl -s -X POST \
   "$PAINEL_URL/api/auth/login" \
   -H "Content-Type: application/json" \
-  -d "{\"username\":\"$PAINEL_USER\",\"password\":\"$PAINEL_PASS\"}" \
-  --connect-timeout 15 -m 30 2>&1 | grep -o '"token":"[^"]*"' | cut -d'"' -f4)
+  -d '{"username":"joao","password":"Joao123@"}' \
+  --connect-timeout 15 -m 30 2>&1 | python3 -c "import sys,json; print(json.load(sys.stdin).get('token',''))" 2>/dev/null)
 
 if [ -z "$PAINEL_TOKEN" ]; then
   echo "❌ Erro ao logar no Painel"
@@ -77,25 +44,20 @@ if [ -z "$PAINEL_TOKEN" ]; then
 fi
 echo "✅ Token obtido"
 
-# 5. Enviar dados para o painel
+# 3. Enviar dados para o painel
 echo ""
-echo "5. Enviando dados para o Painel..."
+echo "3. Enviando dados para o Painel..."
 
-# Montar JSON
-SYNC_DATA=$(cat <<EOF
-{
-  "customers": $(echo "$CUSTOMERS" | python3 -c "import sys,json; d=json.load(sys.stdin); print(json.dumps(d.get('data',d)))"),
-  "resellers": $(echo "$RESELLERS" | python3 -c "import sys,json; d=json.load(sys.stdin); print(json.dumps(d.get('data',d)))")
-}
-EOF
-)
+# Extrair arrays
+CUSTOMERS=$(echo "$SYNC_DATA" | python3 -c "import sys,json; d=json.load(sys.stdin); print(json.dumps(d.get('data',{}).get('customers',[])))" 2>/dev/null)
+RESELLERS=$(echo "$SYNC_DATA" | python3 -c "import sys,json; d=json.load(sys.stdin); print(json.dumps(d.get('data',{}).get('resellers',[])))" 2>/dev/null)
 
 RESULT=$(curl -s -X POST \
   "$PAINEL_URL/api/sync/raioflix" \
   -H "Authorization: Bearer $PAINEL_TOKEN" \
   -H "Content-Type: application/json" \
-  -d "$SYNC_DATA" \
-  --connect-timeout 15 -m 30 2>&1)
+  -d "{\"customers\": $CUSTOMERS, \"resellers\": $RESELLERS}" \
+  --connect-timeout 30 -m 60 2>&1)
 
 echo "$RESULT"
 

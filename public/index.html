@@ -59,6 +59,8 @@
       Users: () => <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2M9 11a4 4 0 100-8 4 4 0 000 8zM23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75" strokeWidth="2"/></svg>,
       Plus: () => <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" strokeWidth="2"/></svg>,
       Trash: () => <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2" strokeWidth="2"/></svg>,
+      Edit: () => <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" strokeWidth="2"/></svg>,
+      Renew: () => <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" strokeWidth="2"/></svg>,
       Refresh: () => <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M23 4v6h-6M1 20v-6h6M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15" strokeWidth="2"/></svg>,
       X: () => <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12" strokeWidth="2"/></svg>,
       Logout: () => <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9" strokeWidth="2"/></svg>,
@@ -195,7 +197,9 @@
       const [users, setUsers] = useState([]);
       const [loading, setLoading] = useState(true);
       const [showModal, setShowModal] = useState(false);
+      const [editUser, setEditUser] = useState(null);
       const [form, setForm] = useState({ username: '', password: '', name: '', email: '', role: 'revenda', credits: 0 });
+      const [editForm, setEditForm] = useState({ name: '', email: '', role: '', credits: 0 });
       const [syncStatus, setSyncStatus] = useState(null);
 
       const loadUsers = async () => {
@@ -243,6 +247,22 @@
           loadUsers();
         } catch (e) {
           console.error('Erro ao excluir:', e);
+        }
+      };
+
+      const openEditUser = (u) => {
+        setEditUser(u);
+        setEditForm({ name: u.name || '', email: u.email || '', role: u.role, credits: u.credits || 0 });
+      };
+
+      const updateUser = async () => {
+        try {
+          await api.put(`/api/users/${editUser.id}`, editForm);
+          setEditUser(null);
+          loadUsers();
+        } catch (e) {
+          console.error('Erro ao atualizar:', e);
+          alert('Erro ao atualizar: ' + e.message);
         }
       };
 
@@ -310,6 +330,7 @@
                         </span>
                       </td>
                       <td className="p-3 text-right">
+                        <button onClick={() => openEditUser(u)} className="p-1 text-yellow-400 hover:text-yellow-300 mr-1"><Icons.Edit /></button>
                         {u.id !== user.id && (
                           <button onClick={() => deleteUser(u.id)} className="p-1 text-red-400 hover:text-red-300"><Icons.Trash /></button>
                         )}
@@ -361,6 +382,36 @@
               </div>
             </div>
           </Modal>
+
+          {/* Modal Editar Usuário */}
+          <Modal isOpen={!!editUser} onClose={() => setEditUser(null)} title="Editar Usuário" size="sm">
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm text-gray-400 mb-1">Nome</label>
+                <input type="text" value={editForm.name} onChange={e => setEditForm({...editForm, name: e.target.value})} className="w-full bg-gray-700 border border-gray-600 rounded-lg p-2.5 text-white" />
+              </div>
+              <div>
+                <label className="block text-sm text-gray-400 mb-1">Email</label>
+                <input type="email" value={editForm.email} onChange={e => setEditForm({...editForm, email: e.target.value})} className="w-full bg-gray-700 border border-gray-600 rounded-lg p-2.5 text-white" />
+              </div>
+              <div>
+                <label className="block text-sm text-gray-400 mb-1">Nível</label>
+                <select value={editForm.role} onChange={e => setEditForm({...editForm, role: e.target.value})} className="w-full bg-gray-700 border border-gray-600 rounded-lg p-2.5 text-white">
+                  {Object.entries(roleLabels).map(([key, label]) => (
+                    <option key={key} value={key}>{label}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm text-gray-400 mb-1">Créditos</label>
+                <input type="number" value={editForm.credits} onChange={e => setEditForm({...editForm, credits: parseFloat(e.target.value) || 0})} className="w-full bg-gray-700 border border-gray-600 rounded-lg p-2.5 text-white" />
+              </div>
+              <div className="flex gap-2 pt-4">
+                <button onClick={() => setEditUser(null)} className="flex-1 px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg">Cancelar</button>
+                <button onClick={updateUser} className="flex-1 px-4 py-2 bg-yellow-600 hover:bg-yellow-500 rounded-lg">Salvar</button>
+              </div>
+            </div>
+          </Modal>
         </div>
       );
     }
@@ -369,12 +420,33 @@
     function RaioFlixClients() {
       const [clients, setClients] = useState([]);
       const [loading, setLoading] = useState(true);
+      const [syncing, setSyncing] = useState(false);
+      const [lastSync, setLastSync] = useState(null);
       const [showModal, setShowModal] = useState(false);
+      const [renewClient, setRenewClient] = useState(null);
+      const [renewDays, setRenewDays] = useState(30);
+      const [expFilter, setExpFilter] = useState('all');
       const [form, setForm] = useState({ username: '', password: '', server_id: 'BV4D3rLaqZ', package_id: 'Yen129WPEa', connections: 1 });
+
+      const syncNow = async () => {
+        setSyncing(true);
+        try {
+          const res = await api.post('/api/sync/now');
+          if (res.success) {
+            setLastSync(res.lastSync);
+            console.log(`✅ Sincronizado: ${res.customers} clientes`);
+          }
+        } catch (e) {
+          console.error('Erro ao sincronizar:', e);
+        }
+        setSyncing(false);
+      };
 
       const loadClients = async () => {
         setLoading(true);
         try {
+          // Primeiro sincroniza, depois carrega
+          await syncNow();
           const res = await api.get('/api/raioflix/customers');
           setClients(res.data || []);
         } catch (e) {
@@ -409,11 +481,40 @@
       return (
         <div className="space-y-4">
           <div className="flex items-center justify-between">
-            <h2 className="text-2xl font-bold">RaioFlix (TV)</h2>
+            <div>
+              <h2 className="text-2xl font-bold">RaioFlix (TV)</h2>
+              {lastSync && <p className="text-xs text-gray-500">Última sync: {new Date(lastSync).toLocaleString('pt-BR')}</p>}
+            </div>
             <div className="flex gap-2">
-              <button onClick={loadClients} className="p-2 bg-gray-700 rounded-lg hover:bg-gray-600"><Icons.Refresh /></button>
+              <button onClick={loadClients} disabled={loading || syncing} className="p-2 bg-gray-700 rounded-lg hover:bg-gray-600 disabled:opacity-50">
+                {syncing ? <span className="loading inline-block">⏳</span> : <Icons.Refresh />}
+              </button>
               <button onClick={() => setShowModal(true)} className="flex items-center gap-2 px-4 py-2 bg-cyan-600 hover:bg-cyan-500 rounded-lg"><Icons.Plus /> Novo</button>
             </div>
+          </div>
+
+          {syncing && <div className="text-center py-2 text-cyan-400 text-sm">🔄 Sincronizando com RaioFlix...</div>}
+
+          {/* Filtro de Expiração */}
+          <div className="flex items-center gap-4 mb-4">
+            <span className="text-sm text-gray-400">Filtrar expiração:</span>
+            <select value={expFilter} onChange={e => setExpFilter(e.target.value)} className="bg-gray-700 border border-gray-600 rounded-lg px-3 py-1.5 text-sm">
+              <option value="all">Todos</option>
+              <option value="7">7 dias</option>
+              <option value="15">15 dias</option>
+              <option value="30">30 dias</option>
+              <option value="expired">Expirados</option>
+            </select>
+            <span className="text-xs text-gray-500">
+              {expFilter !== 'all' && `Mostrando ${clients.filter(c => {
+                if (expFilter === 'expired') return c.status === 'expired' || (c.exp_date && new Date(c.exp_date) < new Date());
+                const days = parseInt(expFilter);
+                const exp = new Date(c.exp_date);
+                const now = new Date();
+                const diff = (exp - now) / (1000 * 60 * 60 * 24);
+                return diff > 0 && diff <= days;
+              }).length} clientes`}
+            </span>
           </div>
 
           {loading ? (
@@ -431,7 +532,15 @@
                   </tr>
                 </thead>
                 <tbody>
-                  {clients.map(client => (
+                  {clients.filter(client => {
+                    if (expFilter === 'all') return true;
+                    if (expFilter === 'expired') return client.status === 'expired' || (client.exp_date && new Date(client.exp_date) < new Date());
+                    const days = parseInt(expFilter);
+                    const exp = new Date(client.exp_date);
+                    const now = new Date();
+                    const diff = (exp - now) / (1000 * 60 * 60 * 24);
+                    return diff > 0 && diff <= days;
+                  }).map(client => (
                     <tr key={client.id || client._id} className="border-b border-gray-800 hover:bg-gray-800/50">
                       <td className="p-3 font-mono">{client.username}</td>
                       <td className="p-3">{client.server_name || client.server_id}</td>
@@ -442,6 +551,7 @@
                       </td>
                       <td className="p-3">{client.exp_date ? new Date(client.exp_date).toLocaleDateString('pt-BR') : 'N/A'}</td>
                       <td className="p-3 text-right">
+                        <button onClick={() => { setRenewClient(client); setRenewDays(30); }} className="p-1 text-green-400 hover:text-green-300 mr-1" title="Renovar"><Icons.Renew /></button>
                         <button onClick={() => deleteClient(client.id || client._id)} className="p-1 text-red-400 hover:text-red-300"><Icons.Trash /></button>
                       </td>
                     </tr>
@@ -483,6 +593,136 @@
               <div className="flex gap-2 pt-4">
                 <button onClick={() => setShowModal(false)} className="flex-1 px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg">Cancelar</button>
                 <button onClick={createClient} className="flex-1 px-4 py-2 bg-cyan-600 hover:bg-cyan-500 rounded-lg">Criar</button>
+              </div>
+            </div>
+          </Modal>
+
+          {/* Modal Renovar Cliente */}
+          <Modal isOpen={!!renewClient} onClose={() => setRenewClient(null)} title={`Renovar ${renewClient?.username}`} size="sm">
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm text-gray-400 mb-1">Dias para adicionar</label>
+                <input type="number" value={renewDays} onChange={e => setRenewDays(parseInt(e.target.value) || 30)} className="w-full bg-gray-700 border border-gray-600 rounded-lg p-2.5 text-white" />
+              </div>
+              <div className="text-sm text-gray-400">
+                Nova expiração: {renewClient?.exp_date ? new Date(new Date(renewClient.exp_date).getTime() + renewDays * 24 * 60 * 60 * 1000).toLocaleDateString('pt-BR') : 'N/A'}
+              </div>
+              <div className="flex gap-2 pt-4">
+                <button onClick={() => setRenewClient(null)} className="flex-1 px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg">Cancelar</button>
+                <button onClick={async () => {
+                  try {
+                    await api.put(`/api/raioflix/customers/${renewClient.id || renewClient._id}/renew`, { days: renewDays });
+                    setRenewClient(null);
+                    loadClients();
+                  } catch (e) {
+                    alert('Erro ao renovar: ' + e.message);
+                  }
+                }} className="flex-1 px-4 py-2 bg-green-600 hover:bg-green-500 rounded-lg">Renovar</button>
+              </div>
+            </div>
+          </Modal>
+        </div>
+      );
+    }
+
+    // RaioFlix Resellers
+    function RaioFlixResellers() {
+      const [resellers, setResellers] = useState([]);
+      const [loading, setLoading] = useState(true);
+      const [editReseller, setEditReseller] = useState(null);
+      const [editCredits, setEditCredits] = useState(0);
+
+      const loadResellers = async () => {
+        setLoading(true);
+        try {
+          const res = await api.get('/api/raioflix/resellers');
+          setResellers(res.data || []);
+        } catch (e) {
+          console.error('Erro ao carregar:', e);
+        }
+        setLoading(false);
+      };
+
+      useEffect(() => { loadResellers(); }, []);
+
+      const toggleStatus = async (reseller) => {
+        try {
+          const newStatus = reseller.status === 'active' ? 'banned' : 'active';
+          await api.put(`/api/raioflix/resellers/${reseller.id || reseller._id}`, { status: newStatus });
+          loadResellers();
+        } catch (e) {
+          alert('Erro: ' + e.message);
+        }
+      };
+
+      const updateCredits = async () => {
+        try {
+          await api.put(`/api/raioflix/resellers/${editReseller.id || editReseller._id}`, { credits: editCredits });
+          setEditReseller(null);
+          loadResellers();
+        } catch (e) {
+          alert('Erro: ' + e.message);
+        }
+      };
+
+      return (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <h2 className="text-2xl font-bold">Revendas RaioFlix</h2>
+            <button onClick={loadResellers} className="p-2 bg-gray-700 rounded-lg hover:bg-gray-600"><Icons.Refresh /></button>
+          </div>
+
+          {loading ? (
+            <div className="text-center py-8 text-gray-400">Carregando...</div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-gray-800">
+                  <tr>
+                    <th className="text-left p-3">Username</th>
+                    <th className="text-left p-3">Créditos</th>
+                    <th className="text-left p-3">Status</th>
+                    <th className="text-left p-3">Criado em</th>
+                    <th className="text-right p-3">Ações</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {resellers.map(r => (
+                    <tr key={r.id || r._id} className="border-b border-gray-800 hover:bg-gray-800/50">
+                      <td className="p-3 font-mono">{r.username}</td>
+                      <td className="p-3">
+                        <span className="flex items-center gap-1"><Icons.Dollar />{r.credits || 0}</span>
+                      </td>
+                      <td className="p-3">
+                        <span className={`px-2 py-1 rounded text-xs ${r.status === 'active' ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}>
+                          {r.status === 'active' ? 'Ativo' : 'Bloqueado'}
+                        </span>
+                      </td>
+                      <td className="p-3">{r.created_at ? new Date(r.created_at).toLocaleDateString('pt-BR') : 'N/A'}</td>
+                      <td className="p-3 text-right">
+                        <button onClick={() => { setEditReseller(r); setEditCredits(r.credits || 0); }} className="p-1 text-yellow-400 hover:text-yellow-300 mr-1" title="Editar créditos"><Icons.Edit /></button>
+                        <button onClick={() => toggleStatus(r)} className={`p-1 ${r.status === 'active' ? 'text-red-400 hover:text-red-300' : 'text-green-400 hover:text-green-300'}`} title={r.status === 'active' ? 'Bloquear' : 'Ativar'}>
+                          {r.status === 'active' ? '🔒' : '🔓'}
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              {resellers.length === 0 && <div className="text-center py-8 text-gray-400">Nenhuma revenda encontrada</div>}
+            </div>
+          )}
+
+          {/* Modal Editar Créditos */}
+          <Modal isOpen={!!editReseller} onClose={() => setEditReseller(null)} title={`Editar ${editReseller?.username}`} size="sm">
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm text-gray-400 mb-1">Créditos</label>
+                <input type="number" value={editCredits} onChange={e => setEditCredits(parseFloat(e.target.value) || 0)} className="w-full bg-gray-700 border border-gray-600 rounded-lg p-2.5 text-white" />
+              </div>
+              <div className="flex gap-2 pt-4">
+                <button onClick={() => setEditReseller(null)} className="flex-1 px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg">Cancelar</button>
+                <button onClick={updateCredits} className="flex-1 px-4 py-2 bg-yellow-600 hover:bg-yellow-500 rounded-lg">Salvar</button>
               </div>
             </div>
           </Modal>
@@ -698,6 +938,9 @@
               <button onClick={() => setTab('raioflix')} className={`px-4 py-3 text-sm font-medium whitespace-nowrap ${tab === 'raioflix' ? 'tab-active' : 'text-gray-400 hover:text-white'}`}>
                 📺 RaioFlix TV
               </button>
+              <button onClick={() => setTab('resellers')} className={`px-4 py-3 text-sm font-medium whitespace-nowrap ${tab === 'resellers' ? 'tab-active' : 'text-gray-400 hover:text-white'}`}>
+                👔 Revendas
+              </button>
               <button onClick={() => setTab('servex')} className={`px-4 py-3 text-sm font-medium whitespace-nowrap ${tab === 'servex' ? 'tab-active' : 'text-gray-400 hover:text-white'}`}>
                 📡 ServeX Internet
               </button>
@@ -709,6 +952,7 @@
             {tab === 'dashboard' && <Dashboard stats={stats} onRefresh={loadStats} />}
             {tab === 'users' && <UsersTab user={user} />}
             {tab === 'raioflix' && <RaioFlixClients />}
+            {tab === 'resellers' && <RaioFlixResellers />}
             {tab === 'servex' && <ServeXClients />}
           </main>
         </div>

@@ -132,4 +132,48 @@ painel-iptv/
 
 ---
 
+## 🔧 Proxy Worker para RaioFlix
+
+O RaioFlix bloqueia IPs de datacenter. O Proxy Worker permite criar/deletar clientes de fora do container.
+
+### Como funciona:
+
+```
+┌─────────────┐     ┌──────────────────┐     ┌─────────────┐
+│   Painel    │────▶│   Proxy Worker   │────▶│  RaioFlix   │
+│  EasyPanel  │     │  (IP residencial)│     │    API      │
+└─────────────┘     └──────────────────┘     └─────────────┘
+```
+
+### Rodar o Proxy Worker:
+
+```bash
+# No servidor com IP residencial (ou onde proxy funciona)
+cd painel-iptv/workers
+npm install
+RAIOFLIX_PROXY=http://195.114.209.50:80 PROXY_WORKER_PORT=3001 node raioflix-proxy.js
+```
+
+### Configurar no Painel:
+
+Adicione no `.env` do painel:
+
+```
+RAIOFLIX_PROXY_WORKER=http://ip-do-worker:3001
+RAIOFLIX_PROXY_KEY=rf_proxy_key_2026
+```
+
+### Endpoints do Worker:
+
+- `GET /customers` - Listar clientes
+- `POST /customers` - Criar cliente
+- `PUT /customers/:id` - Atualizar cliente
+- `DELETE /customers/:id` - Deletar cliente
+- `GET /resellers` - Listar revendas
+- `GET /servers` - Listar servidores
+- `GET /packages` - Listar pacotes
+- `POST /sync` - Sincronizar dados
+
+---
+
 *Última atualização: 2026-03-20*
