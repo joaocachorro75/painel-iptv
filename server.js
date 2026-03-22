@@ -28,7 +28,6 @@ const app = express();
 const PORT = process.env.PORT || process.env.PAINEL_PORT || 3480;
 
 // Criar pasta data se não existir
-import fs from 'fs';
 const dataDir = path.join(__dirname, 'data');
 if (!fs.existsSync(dataDir)) {
   fs.mkdirSync(dataDir, { recursive: true });
