@@ -133,10 +133,11 @@ export function updateUser(id, data) {
   const fields = [];
   const values = [];
   
-  if (data.email) { fields.push('email = ?'); values.push(data.email); }
-  if (data.name) { fields.push('name = ?'); values.push(data.name); }
+  if (data.email !== undefined) { fields.push('email = ?'); values.push(data.email); }
+  if (data.name !== undefined) { fields.push('name = ?'); values.push(data.name); }
   if (data.credits !== undefined) { fields.push('credits = ?'); values.push(data.credits); }
-  if (data.status) { fields.push('status = ?'); values.push(data.status); }
+  if (data.status !== undefined) { fields.push('status = ?'); values.push(data.status); }
+  if (data.role !== undefined) { fields.push('role = ?'); values.push(data.role); }
   
   if (fields.length === 0) return null;
   
