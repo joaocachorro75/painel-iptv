@@ -15,10 +15,20 @@ def curl_with_proxy(url, token=None):
     if token:
         cmd.extend(["-H", f"Authorization: Bearer {token}"])
     result = subprocess.run(cmd, capture_output=True, text=True)
-    return json.loads(result.stdout)
+    
+    # Debug
+    if result.returncode != 0:
+        print(f"   ⚠️ Curl error: {result.stderr}")
+    
+    try:
+        return json.loads(result.stdout)
+    except json.JSONDecodeError as e:
+        print(f"   ⚠️ JSON error: {result.stdout[:100]}")
+        raise
 
 def main():
-    print("🔄 Buscando dados RaioFlix...")
+    print(f"🔄 Buscando dados RaioFlix...")
+    print(f"   Proxy: {RAIOFLIX_PROXY}")
     
     # Buscar clientes (todas as páginas)
     all_customers = []

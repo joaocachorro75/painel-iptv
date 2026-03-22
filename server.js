@@ -628,13 +628,16 @@ app.post('/api/sync/now', authMiddleware, async (req, res) => {
       try {
         const output = execSync(`python3 ${scriptPath} 2>&1`, { 
           timeout: 120000,
-          env: { ...process.env }
+          env: { ...process.env },
+          encoding: 'utf8'
         });
         
-        console.log('[Painel] Script output:', output.toString().substring(0, 200));
+        console.log('[Painel] Script output:\n' + output);
       } catch (scriptError) {
-        console.error('[Painel] Erro no script:', scriptError.message);
+        console.error('[Painel] Erro no script:', scriptError.stdout || scriptError.message);
       }
+    } else {
+      console.log('[Painel] Script não encontrado:', scriptPath);
     }
     
     // Se mesmo após sync não tem dados, usa cache existente
