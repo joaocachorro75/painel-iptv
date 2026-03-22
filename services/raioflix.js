@@ -333,11 +333,24 @@ export async function getStats() {
  * Retorna { customers, resellers, servers, packages }
  */
 export async function syncAll() {
-  if (!PROXY_WORKER_URL) {
-    throw new Error('Proxy worker não configurado para sync');
-  }
+  console.log('[RaioFlix] Iniciando syncAll...');
   
-  return await fetchViaProxyWorker('/sync');
+  try {
+    // Buscar todos os dados
+    const [customers, resellers, servers, packages] = await Promise.all([
+      listCustomers(),
+      listResellers(),
+      listServers(),
+      listPackages()
+    ]);
+    
+    console.log(`✅ RaioFlix sync: ${customers.length} clientes, ${resellers.length} revendas`);
+    
+    return { customers, resellers, servers, packages };
+  } catch (error) {
+    console.error('[RaioFlix] Erro no syncAll:', error.message);
+    throw error;
+  }
 }
 
 export default {
