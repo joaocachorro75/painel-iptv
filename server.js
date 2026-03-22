@@ -594,45 +594,85 @@ app.post('/api/sync/now', authMiddleware, async (req, res) => {
     const WORKER_URL = process.env.RAIOFLIX_PROXY_WORKER || 'http://localhost:3001';
     const WORKER_KEY = process.env.RAIOFLIX_PROXY_KEY || 'rf_proxy_key_2026';
     
-    // Chamar o Worker
-    const response = await fetch(`${WORKER_URL}/sync`, {
-      method: 'GET',
-      headers: { 'X-API-Key': WORKER_KEY },
-      timeout: 120000
-    });
-    
-    if (!response.ok) {
-      throw new Error(`Worker retornou ${response.status}`);
+    // Tenta chamar o Worker primeiro
+    try {
+      const response = await fetch(`${WORKER_URL}/sync`, {
+        method: 'GET',
+        headers: { 'X-API-Key': WORKER_KEY },
+        timeout: 30000
+      });
+      
+      if (response.ok) {
+        const result = await response.json();
+        
+        if (result.success && result.data) {
+          raioFlixCache.customers = result.data.customers || [];
+          raioFlixCache.resellers = result.data.resellers || [];
+          raioFlixCache.servers = result.data.servers || [];
+          raioFlixCache.packages = result.data.packages || [];
+          raioFlixCache.lastSync = new Date().toISOString();
+          
+          console.log(`✅ Sincronizado via Worker: ${raioFlixCache.customers.length} clientes`);
+          
+          return res.json({
+            success: true,
+            message: 'Sincronizado via Worker',
+            customers: raioFlixCache.customers.length,
+            resellers: raioFlixCache.resellers.length,
+            lastSync: raioFlixCache.lastSync
+          });
+        }
+      }
+    } catch (workerError) {
+      console.log('[Painel] Worker não disponível, tentando script Python...');
     }
     
-    const result = await response.json();
+    // Se Worker falhou, tenta o script Python direto
+    const { execSync } = await import('child_process');
     
-    if (result.success && result.data) {
-      raioFlixCache.customers = result.data.customers || [];
-      raioFlixCache.resellers = result.data.resellers || [];
-      raioFlixCache.servers = result.data.servers || [];
-      raioFlixCache.packages = result.data.packages || [];
+    try {
+      execSync('python3 /tmp/sync_raioflix.py 2>&1', { 
+        timeout: 120000,
+        env: { ...process.env, OUTPUT_JSON: '1' }
+      });
+      
+      // Lê o cache atualizado
+      const cacheData = execSync('cat /tmp/raioflix_cache.json 2>/dev/null', { encoding: 'utf8' });
+      const data = JSON.parse(cacheData);
+      
+      raioFlixCache.customers = data.customers || [];
+      raioFlixCache.resellers = data.resellers || [];
+      raioFlixCache.servers = data.servers || [];
+      raioFlixCache.packages = data.packages || [];
       raioFlixCache.lastSync = new Date().toISOString();
       
-      console.log(`✅ Sincronizado via Worker: ${raioFlixCache.customers.length} clientes`);
+      console.log(`✅ Sincronizado via Python: ${raioFlixCache.customers.length} clientes`);
+      
+      res.json({
+        success: true,
+        message: 'Sincronizado via Python',
+        customers: raioFlixCache.customers.length,
+        resellers: raioFlixCache.resellers.length,
+        lastSync: raioFlixCache.lastSync
+      });
+    } catch (pythonError) {
+      console.error('[Painel] Erro no Python:', pythonError.message);
+      // Retorna cache existente
+      res.json({
+        success: true,
+        message: 'Usando cache local',
+        customers: raioFlixCache.customers.length,
+        resellers: raioFlixCache.resellers.length,
+        lastSync: raioFlixCache.lastSync,
+        fromCache: true
+      });
     }
-    
-    res.json({
-      success: true,
-      message: 'Sincronização concluída',
-      customers: raioFlixCache.customers.length,
-      resellers: raioFlixCache.resellers.length,
-      lastSync: raioFlixCache.lastSync
-    });
   } catch (error) {
     console.error('[Painel] Erro na sincronização:', error.message);
-    // Retorna sucesso parcial com cache existente
     res.json({
-      success: true,
-      message: 'Usando cache local (Worker indisponível)',
+      success: false,
+      error: error.message,
       customers: raioFlixCache.customers.length,
-      resellers: raioFlixCache.resellers.length,
-      lastSync: raioFlixCache.lastSync,
       fromCache: true
     });
   }
