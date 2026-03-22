@@ -716,10 +716,45 @@ app.get('*', (req, res) => {
 // ==========================================
 // START SERVER
 // ==========================================
-app.listen(PORT, () => {
+app.listen(PORT, async () => {
   console.log(`🚀 Painel IPTV rodando na porta ${PORT}`);
   console.log(`📡 RaioFlix: ${process.env.RAIOFLIX_BASE_URL}`);
   console.log(`🌐 ServeX: ${process.env.SERVEX_BASE_URL}`);
   console.log(`👤 Login padrão: joao / Joao123@`);
-  console.log(`⚠️ Worker deve rodar em container separado na porta 3001`);
+  
+  // Sincronização automática ao iniciar (se não tem cache)
+  if (raioFlixCache.customers?.length === 0) {
+    console.log('🔄 Sincronização automática ao iniciar...');
+    const scriptPath = path.join(__dirname, 'scripts', 'sync_now.py');
+    if (fs.existsSync(scriptPath)) {
+      const { execSync } = await import('child_process');
+      try {
+        execSync(`python3 ${scriptPath}`, { timeout: 120000, env: process.env });
+        console.log('✅ Sincronização inicial concluída');
+      } catch (e) {
+        console.log('⚠️ Sync inicial falhou:', e.message);
+      }
+    }
+  }
+  
+  // Importar revendas automaticamente se não existem
+  const users = db.listUsers();
+  if (users.length <= 1 && raioFlixCache.resellers?.length > 0) {
+    console.log('🔄 Importando revendas automaticamente...');
+    for (const r of raioFlixCache.resellers) {
+      try {
+        db.createUser({
+          username: r.username,
+          password: 'Mudar123!',
+          name: r.username.replace('@', ''),
+          email: `${r.username}@raioflix.temp`,
+          role: 'master',
+          credits: r.credits || 0,
+          parent_id: 1,
+          status: 'active'
+        });
+      } catch (e) {}
+    }
+    console.log(`✅ ${raioFlixCache.resellers.length} revendas importadas`);
+  }
 });
