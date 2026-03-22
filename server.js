@@ -418,9 +418,18 @@ app.post('/api/raioflix/import-resellers', authMiddleware, roleMiddleware('super
 // ==========================================
 app.get('/api/raioflix/servers', authMiddleware, async (req, res) => {
   try {
+    // Retorna do cache se disponível
+    if (raioFlixCache.servers && raioFlixCache.servers.length > 0) {
+      return res.json({ success: true, data: raioFlixCache.servers });
+    }
+    // Se não tem cache, busca da API
     const servers = await RaioFlix.listServers();
     res.json({ success: true, data: servers });
   } catch (error) {
+    // Fallback para cache mesmo com erro
+    if (raioFlixCache.servers && raioFlixCache.servers.length > 0) {
+      return res.json({ success: true, data: raioFlixCache.servers, fromCache: true });
+    }
     res.status(500).json({ success: false, error: error.message });
   }
 });

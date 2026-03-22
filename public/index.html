@@ -466,16 +466,43 @@
 
       useEffect(() => { loadClients(); }, []);
       
+      // URLs por servidor (será atualizado pelo sync)
+      const [servers, setServers] = useState([]);
+      
+      // Carregar servidores do cache
+      useEffect(() => {
+        api.get('/api/raioflix/servers').then(res => {
+          setServers(res.data || []);
+        }).catch(e => console.error('Erro ao carregar servidores:', e));
+      }, []);
+      
+      // Obter URL do servidor
+      const getServerUrl = (serverId) => {
+        const server = servers.find(s => s.id === serverId);
+        if (server?.url) return server.url;
+        if (server?.dns_list) {
+          const urls = server.dns_list.split('\n').filter(u => u.trim());
+          return urls[0] || 'http://tv.raioflix.com:8080';
+        }
+        // Fallback hardcoded
+        const fallbacks = {
+          'rlKWO3Wzo7': 'http://play22.xyz:80',
+          'BV4D3rLaqZ': 'http://multi01.shop',
+          'RYAWRk1jlx': 'http://blackdns.shop'
+        };
+        return fallbacks[serverId] || 'http://tv.raioflix.com:8080';
+      };
+      
       // Copiar configurações para cliente
       const copyConfig = (c) => {
+        const serverUrl = getServerUrl(c.server_id);
         const config = `📺 DADOS DE ACESSO - RAIOFLIX TV
 ━━━━━━━━━━━━━━━━━━━━━━
 👤 Usuário: ${c.username}
 🔑 Senha: ${c.password || '********'}
-🌐 URL: http://tv.raioflix.com:8080
-📱 APK: http://tv.raioflix.com:8080/apk
+🌐 URL: ${serverUrl}
 ━━━━━━━━━━━━━━━━━━━━━━
-✅ Conexões: ${c.max_connections || 1}
+✅ Conexões: ${c.connections || 1}
 📅 Expira: ${c.exp_date ? new Date(c.exp_date).toLocaleDateString('pt-BR') : 'N/A'}`;
         navigator.clipboard.writeText(config);
         alert('Configurações copiadas!');
