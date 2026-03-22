@@ -327,6 +327,7 @@ export default {
   getUserById,
   updateUser,
   deleteUser,
+  listUsers,
   verifyPassword,
   canCreateRole,
   getSubordinateUsers,
