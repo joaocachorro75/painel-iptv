@@ -103,16 +103,16 @@ db.prepare(`
 // ==========================================
 
 export function createUser(data) {
-  const { username, password, email, name, role, parent_id, credits } = data;
+  const { username, password, email, name, role, parent_id, credits, status } = data;
   const hashedPassword = bcrypt.hashSync(password, 10);
   
   try {
     const result = db.prepare(`
-      INSERT INTO users (username, password, email, name, role, parent_id, credits)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
-    `).run(username, hashedPassword, email, name, role, parent_id || null, credits || 0);
+      INSERT INTO users (username, password, email, name, role, parent_id, credits, status)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(username, hashedPassword, email, name, role, parent_id || null, credits || 0, status || 'active');
     
-    return { id: result.lastInsertRowid, username, email, name, role, credits: credits || 0 };
+    return { id: result.lastInsertRowid, username, email, name, role, credits: credits || 0, status: status || 'active' };
   } catch (error) {
     if (error.code === 'SQLITE_CONSTRAINT_UNIQUE') {
       throw new Error('Usuário já existe');
