@@ -5,7 +5,9 @@ import urllib.request
 import os
 
 # URL do painel: usa variável de ambiente ou localhost (quando roda no container)
-PAINEL_URL = os.environ.get("PAINEL_URL", "http://localhost")
+# EasyPanel define PORT=80, então usamos localhost:80 dentro do container
+PAINEL_PORT = os.environ.get("PORT", "80")
+PAINEL_URL = os.environ.get("PAINEL_URL", f"http://localhost:{PAINEL_PORT}")
 RAIOFLIX_PROXY = os.environ.get("RAIOFLIX_PROXY", "http://195.114.209.50:80")
 RAIOFLIX_TOKEN = "1144|pheGJmNyk52gve7KnuiLzoeLBkBQKzJHLWt6AG9I77cfbf8a"
 
