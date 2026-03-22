@@ -7,9 +7,9 @@ const __filename2 = fileURLToPath2(import.meta.url);
 const __dirname2 = path.dirname(__filename2);
 dotenv.config({ path: path.join(__dirname2, '.env') });
 
-// Forçar porta 3480 se não definida
+// Forçar porta do ambiente (EasyPanel usa PORT=80)
 if (!process.env.PORT && !process.env.PAINEL_PORT) {
-  process.env.PORT = '3480';
+  process.env.PORT = '3480'; // fallback local
 }
 
 // Services
