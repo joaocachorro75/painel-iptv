@@ -426,6 +426,7 @@
       const [renewClient, setRenewClient] = useState(null);
       const [renewDays, setRenewDays] = useState(30);
       const [expFilter, setExpFilter] = useState('all');
+      const [resellerFilter, setResellerFilter] = useState('all');
       const [form, setForm] = useState({ username: '', password: '', server_id: 'BV4D3rLaqZ', package_id: 'Yen129WPEa', connections: 1 });
 
       const syncNow = async () => {
@@ -445,17 +446,40 @@
       const loadClients = async () => {
         setLoading(true);
         try {
-          // Primeiro sincroniza, depois carrega
-          await syncNow();
+          // Carrega cache instantaneamente
           const res = await api.get('/api/raioflix/customers');
           setClients(res.data || []);
+          setLastSync(res.lastSync);
+          setLoading(false);
+          
+          // Sincroniza em background (não bloqueia)
+          syncNow().then(async () => {
+            const res2 = await api.get('/api/raioflix/customers');
+            setClients(res2.data || []);
+            setLastSync(res2.lastSync);
+          });
         } catch (e) {
           console.error('Erro ao carregar:', e);
+          setLoading(false);
         }
-        setLoading(false);
       };
 
       useEffect(() => { loadClients(); }, []);
+      
+      // Copiar configurações para cliente
+      const copyConfig = (c) => {
+        const config = `📺 DADOS DE ACESSO - RAIOFLIX TV
+━━━━━━━━━━━━━━━━━━━━━━
+👤 Usuário: ${c.username}
+🔑 Senha: ${c.password || '********'}
+🌐 URL: http://tv.raioflix.com:8080
+📱 APK: http://tv.raioflix.com:8080/apk
+━━━━━━━━━━━━━━━━━━━━━━
+✅ Conexões: ${c.max_connections || 1}
+📅 Expira: ${c.exp_date ? new Date(c.exp_date).toLocaleDateString('pt-BR') : 'N/A'}`;
+        navigator.clipboard.writeText(config);
+        alert('Configurações copiadas!');
+      };
 
       const createClient = async () => {
         try {
@@ -495,26 +519,27 @@
 
           {syncing && <div className="text-center py-2 text-cyan-400 text-sm">🔄 Sincronizando com RaioFlix...</div>}
 
-          {/* Filtro de Expiração */}
-          <div className="flex items-center gap-4 mb-4">
-            <span className="text-sm text-gray-400">Filtrar expiração:</span>
-            <select value={expFilter} onChange={e => setExpFilter(e.target.value)} className="bg-gray-700 border border-gray-600 rounded-lg px-3 py-1.5 text-sm">
-              <option value="all">Todos</option>
-              <option value="7">7 dias</option>
-              <option value="15">15 dias</option>
-              <option value="30">30 dias</option>
-              <option value="expired">Expirados</option>
-            </select>
-            <span className="text-xs text-gray-500">
-              {expFilter !== 'all' && `Mostrando ${clients.filter(c => {
-                if (expFilter === 'expired') return c.status === 'expired' || (c.exp_date && new Date(c.exp_date) < new Date());
-                const days = parseInt(expFilter);
-                const exp = new Date(c.exp_date);
-                const now = new Date();
-                const diff = (exp - now) / (1000 * 60 * 60 * 24);
-                return diff > 0 && diff <= days;
-              }).length} clientes`}
-            </span>
+          {/* Filtros */}
+          <div className="flex items-center gap-4 mb-4 flex-wrap">
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-gray-400">Revenda:</span>
+              <select value={resellerFilter} onChange={e => setResellerFilter(e.target.value)} className="bg-gray-700 border border-gray-600 rounded-lg px-3 py-1.5 text-sm">
+                <option value="all">Todas</option>
+                {[...new Set(clients.map(c => c.reseller).filter(Boolean))].sort().map(r => (
+                  <option key={r} value={r}>{r}</option>
+                ))}
+              </select>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-gray-400">Expiração:</span>
+              <select value={expFilter} onChange={e => setExpFilter(e.target.value)} className="bg-gray-700 border border-gray-600 rounded-lg px-3 py-1.5 text-sm">
+                <option value="all">Todos</option>
+                <option value="7">7 dias</option>
+                <option value="15">15 dias</option>
+                <option value="30">30 dias</option>
+                <option value="expired">Expirados</option>
+              </select>
+            </div>
           </div>
 
           {loading ? (
@@ -525,6 +550,7 @@
                 <thead className="bg-gray-800">
                   <tr>
                     <th className="text-left p-3">Usuário</th>
+                    <th className="text-left p-3">Revenda</th>
                     <th className="text-left p-3">Servidor</th>
                     <th className="text-left p-3">Status</th>
                     <th className="text-left p-3">Expira</th>
@@ -533,8 +559,11 @@
                 </thead>
                 <tbody>
                   {clients.filter(client => {
+                    // Filtro por revenda
+                    if (resellerFilter !== 'all' && client.reseller !== resellerFilter) return false;
+                    // Filtro por expiração
                     if (expFilter === 'all') return true;
-                    if (expFilter === 'expired') return client.status === 'expired' || (client.exp_date && new Date(client.exp_date) < new Date());
+                    if (expFilter === 'expired') return client.status?.toLowerCase() === 'expired' || (client.exp_date && new Date(client.exp_date) < new Date());
                     const days = parseInt(expFilter);
                     const exp = new Date(client.exp_date);
                     const now = new Date();
@@ -543,14 +572,16 @@
                   }).map(client => (
                     <tr key={client.id || client._id} className="border-b border-gray-800 hover:bg-gray-800/50">
                       <td className="p-3 font-mono">{client.username}</td>
-                      <td className="p-3">{client.server || client.server_name || client.server_id}</td>
+                      <td className="p-3 text-sm">{client.reseller || '-'}</td>
+                      <td className="p-3 text-sm">{client.server || client.server_name || '-'}</td>
                       <td className="p-3">
-                        <span className={`px-2 py-1 rounded text-xs ${client.status === 'active' ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}>
+                        <span className={`px-2 py-1 rounded text-xs ${client.status?.toLowerCase() === 'active' ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}>
                           {client.status || 'N/A'}
                         </span>
                       </td>
-                      <td className="p-3">{client.exp_date ? new Date(client.exp_date).toLocaleDateString('pt-BR') : 'N/A'}</td>
+                      <td className="p-3 text-sm">{client.exp_date ? new Date(client.exp_date).toLocaleDateString('pt-BR') : 'N/A'}</td>
                       <td className="p-3 text-right">
+                        <button onClick={() => copyConfig(client)} className="p-1 text-cyan-400 hover:text-cyan-300 mr-1" title="Copiar dados">📋</button>
                         <button onClick={() => { setRenewClient(client); setRenewDays(30); }} className="p-1 text-green-400 hover:text-green-300 mr-1" title="Renovar"><Icons.Renew /></button>
                         <button onClick={() => deleteClient(client.id || client._id)} className="p-1 text-red-400 hover:text-red-300"><Icons.Trash /></button>
                       </td>
@@ -788,6 +819,20 @@
           console.error('Erro ao excluir:', e);
         }
       };
+      
+      // Copiar configurações para cliente
+      const copyConfig = (c) => {
+        const config = `🌐 DADOS DE ACESSO - SERVEX
+━━━━━━━━━━━━━━━━━━━━━━
+👤 Usuário: ${c.username}
+🔑 Senha: ${c.password || '********'}
+🌐 URL: http://portal.servex.tv:8080
+━━━━━━━━━━━━━━━━━━━━━━
+✅ Conexões: ${c.connection_limit || 1}
+📅 Expira: ${c.expiration_date ? new Date(c.expiration_date).toLocaleDateString('pt-BR') : 'N/A'}`;
+        navigator.clipboard.writeText(config);
+        alert('Configurações copiadas!');
+      };
 
       return (
         <div className="space-y-4">
@@ -829,6 +874,7 @@
                       </td>
                       <td className="p-3">{client.expiration_date ? new Date(client.expiration_date).toLocaleDateString('pt-BR') : 'N/A'}</td>
                       <td className="p-3 text-right">
+                        <button onClick={() => copyConfig(client)} className="p-1 text-cyan-400 hover:text-cyan-300 mr-1" title="Copiar dados">📋</button>
                         <button onClick={() => deleteClient(client.id)} className="p-1 text-red-400 hover:text-red-300"><Icons.Trash /></button>
                       </td>
                     </tr>
