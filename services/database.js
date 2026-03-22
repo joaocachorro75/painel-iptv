@@ -150,6 +150,10 @@ export function deleteUser(id) {
   return db.prepare('DELETE FROM users WHERE id = ?').run(id);
 }
 
+export function listUsers() {
+  return db.prepare('SELECT id, username, email, name, role, parent_id, credits, status, created_at FROM users').all();
+}
+
 export function verifyPassword(user, password) {
   return bcrypt.compareSync(password, user.password);
 }
