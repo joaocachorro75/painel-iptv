@@ -665,11 +665,29 @@
         }
       };
 
+      const importAsMasters = async () => {
+        if (!confirm('Importar todas as revendas como usuários MASTER no painel?\n\nElas poderão criar revendas e clientes.')) return;
+        try {
+          const res = await api.post('/api/raioflix/import-resellers');
+          alert(res.message || 'Importação concluída!');
+          console.log('Importados:', res.imported);
+        } catch (e) {
+          alert('Erro: ' + e.message);
+        }
+      };
+
       return (
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <h2 className="text-2xl font-bold">Revendas RaioFlix</h2>
-            <button onClick={loadResellers} className="p-2 bg-gray-700 rounded-lg hover:bg-gray-600"><Icons.Refresh /></button>
+            <div className="flex gap-2">
+              <button onClick={importAsMasters} className="px-4 py-2 bg-purple-600 hover:bg-purple-500 rounded-lg text-sm">📥 Importar como Master</button>
+              <button onClick={loadResellers} className="p-2 bg-gray-700 rounded-lg hover:bg-gray-600"><Icons.Refresh /></button>
+            </div>
+          </div>
+          
+          <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-3 text-sm text-yellow-300">
+            💡 <strong>Dica:</strong> Clique em "Importar como Master" para criar usuários master no painel com os créditos sincronizados do RaioFlix.
           </div>
 
           {loading ? (

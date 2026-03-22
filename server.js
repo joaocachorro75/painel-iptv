@@ -368,6 +368,51 @@ app.put('/api/raioflix/customers/:id/renew', authMiddleware, async (req, res) =>
   }
 });
 
+// Importar revendas como usuários master
+app.post('/api/raioflix/import-resellers', authMiddleware, roleMiddleware('super_admin'), async (req, res) => {
+  try {
+    const resellers = raioFlixCache.resellers || [];
+    const imported = [];
+    const errors = [];
+    
+    for (const r of resellers) {
+      try {
+        // Verifica se já existe
+        const existing = db.getUserByUsername(r.username);
+        
+        if (existing) {
+          // Atualiza créditos se já existe
+          db.updateUser(existing.id, { credits: r.credits || 0 });
+          imported.push({ username: r.username, action: 'updated', credits: r.credits });
+        } else {
+          // Cria novo usuário como master
+          const newUser = db.createUser({
+            username: r.username,
+            password: 'Mudar123!', // Senha padrão
+            name: r.username.replace('@', ''),
+            email: `${r.username}@raioflix.temp`,
+            role: 'master', // Importa como master
+            credits: r.credits || 0,
+            parent_id: req.user.id
+          });
+          imported.push({ username: r.username, action: 'created', credits: r.credits });
+        }
+      } catch (e) {
+        errors.push({ username: r.username, error: e.message });
+      }
+    }
+    
+    res.json({ 
+      success: true, 
+      message: `${imported.length} revendas importadas como master`,
+      imported,
+      errors
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // ==========================================
 // RIOFLIX - SERVIDORES E PACOTES
 // ==========================================
