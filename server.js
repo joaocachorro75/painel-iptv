@@ -518,16 +518,33 @@ app.get('/api/stats', authMiddleware, async (req, res) => {
 // ==========================================
 
 // Cache de dados do RaioFlix (atualizado externamente ou via worker)
-let raioFlixCache = {
-  customers: [],
-  resellers: [],
-  lastSync: null
-};
+const CACHE_FILE = path.join(__dirname, 'data', 'raioflix_cache.json');
+
+// Carrega cache do arquivo se existir
+let raioFlixCache = { customers: [], resellers: [], servers: [], packages: [], lastSync: null };
+if (fs.existsSync(CACHE_FILE)) {
+  try {
+    const cached = JSON.parse(fs.readFileSync(CACHE_FILE, 'utf8'));
+    raioFlixCache = cached;
+    console.log(`✅ Cache carregado: ${raioFlixCache.customers?.length || 0} clientes`);
+  } catch (e) {
+    console.log('⚠️ Erro ao carregar cache:', e.message);
+  }
+}
+
+// Função para salvar cache
+function saveCache() {
+  try {
+    fs.writeFileSync(CACHE_FILE, JSON.stringify(raioFlixCache, null, 2));
+  } catch (e) {
+    console.error('Erro ao salvar cache:', e.message);
+  }
+}
 
 // Endpoint para sincronizar via Proxy Worker
 app.post('/api/sync/raioflix', authMiddleware, roleMiddleware('super_admin'), async (req, res) => {
   try {
-    const { customers, resellers } = req.body;
+    const { customers, resellers, servers, packages } = req.body;
     
     // Se vier dados no body, usa eles (script externo)
     if (customers && customers.length > 0) {
@@ -536,7 +553,16 @@ app.post('/api/sync/raioflix', authMiddleware, roleMiddleware('super_admin'), as
     if (resellers && resellers.length > 0) {
       raioFlixCache.resellers = resellers;
     }
+    if (servers && servers.length > 0) {
+      raioFlixCache.servers = servers;
+    }
+    if (packages && packages.length > 0) {
+      raioFlixCache.packages = packages;
+    }
     raioFlixCache.lastSync = new Date().toISOString();
+    
+    // Salva cache em arquivo
+    saveCache();
     
     console.log(`✅ RaioFlix sincronizado: ${raioFlixCache.customers.length} clientes, ${raioFlixCache.resellers.length} revendas`);
     
@@ -589,94 +615,44 @@ app.get('/api/sync/raioflix', authMiddleware, (req, res) => {
 // Endpoint para sincronizar AGORA via Worker (chamado pelo frontend)
 app.post('/api/sync/now', authMiddleware, async (req, res) => {
   try {
-    console.log('[Painel] Sincronização solicitada pelo frontend...');
+    console.log('[Painel] Sincronização solicitada...');
     
-    const WORKER_URL = process.env.RAIOFLIX_PROXY_WORKER || 'http://localhost:3001';
-    const WORKER_KEY = process.env.RAIOFLIX_PROXY_KEY || 'rf_proxy_key_2026';
-    
-    // Tenta chamar o Worker primeiro
-    try {
-      const response = await fetch(`${WORKER_URL}/sync`, {
-        method: 'GET',
-        headers: { 'X-API-Key': WORKER_KEY },
-        timeout: 30000
-      });
-      
-      if (response.ok) {
-        const result = await response.json();
-        
-        if (result.success && result.data) {
-          raioFlixCache.customers = result.data.customers || [];
-          raioFlixCache.resellers = result.data.resellers || [];
-          raioFlixCache.servers = result.data.servers || [];
-          raioFlixCache.packages = result.data.packages || [];
-          raioFlixCache.lastSync = new Date().toISOString();
-          
-          console.log(`✅ Sincronizado via Worker: ${raioFlixCache.customers.length} clientes`);
-          
-          return res.json({
-            success: true,
-            message: 'Sincronizado via Worker',
-            customers: raioFlixCache.customers.length,
-            resellers: raioFlixCache.resellers.length,
-            lastSync: raioFlixCache.lastSync
-          });
-        }
-      }
-    } catch (workerError) {
-      console.log('[Painel] Worker não disponível, tentando script Python...');
-    }
-    
-    // Se Worker falhou, tenta o script Python direto
     const { execSync } = await import('child_process');
     
-    try {
-      const scriptPath = '/tmp/sync_raioflix.py';
-      const repoScriptPath = new URL('./scripts/sync_raioflix.py', import.meta.url).pathname;
-      const useScript = fs.existsSync(scriptPath) ? scriptPath : repoScriptPath;
+    // Roda o script Python de sincronização
+    const scriptPath = path.join(__dirname, 'scripts', 'sync_now.py');
+    
+    if (fs.existsSync(scriptPath)) {
+      console.log('[Painel] Executando script Python...');
       
-      execSync(`python3 ${useScript} 2>&1`, { 
-        timeout: 120000,
-        env: { ...process.env, OUTPUT_JSON: '1' }
-      });
-      
-      // Lê o cache atualizado
-      const cacheData = execSync('cat /tmp/raioflix_cache.json 2>/dev/null', { encoding: 'utf8' });
-      const data = JSON.parse(cacheData);
-      
-      raioFlixCache.customers = data.customers || [];
-      raioFlixCache.resellers = data.resellers || [];
-      raioFlixCache.servers = data.servers || [];
-      raioFlixCache.packages = data.packages || [];
-      raioFlixCache.lastSync = new Date().toISOString();
-      
-      console.log(`✅ Sincronizado via Python: ${raioFlixCache.customers.length} clientes`);
-      
-      res.json({
-        success: true,
-        message: 'Sincronizado via Python',
-        customers: raioFlixCache.customers.length,
-        resellers: raioFlixCache.resellers.length,
-        lastSync: raioFlixCache.lastSync
-      });
-    } catch (pythonError) {
-      console.error('[Painel] Erro no Python:', pythonError.message);
-      // Retorna cache existente
-      res.json({
-        success: true,
-        message: 'Usando cache local',
-        customers: raioFlixCache.customers.length,
-        resellers: raioFlixCache.resellers.length,
-        lastSync: raioFlixCache.lastSync,
-        fromCache: true
-      });
+      try {
+        const output = execSync(`python3 ${scriptPath} 2>&1`, { 
+          timeout: 120000,
+          env: { ...process.env }
+        });
+        
+        console.log('[Painel] Script output:', output.toString().substring(0, 200));
+      } catch (scriptError) {
+        console.error('[Painel] Erro no script:', scriptError.message);
+      }
     }
+    
+    // Se mesmo após sync não tem dados, usa cache existente
+    const customerCount = raioFlixCache.customers?.length || 0;
+    
+    res.json({
+      success: true,
+      message: customerCount > 0 ? 'Sincronizado' : 'Verifique os logs',
+      customers: customerCount,
+      resellers: raioFlixCache.resellers?.length || 0,
+      lastSync: raioFlixCache.lastSync
+    });
   } catch (error) {
     console.error('[Painel] Erro na sincronização:', error.message);
     res.json({
       success: false,
       error: error.message,
-      customers: raioFlixCache.customers.length,
+      customers: raioFlixCache.customers?.length || 0,
       fromCache: true
     });
   }
