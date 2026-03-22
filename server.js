@@ -1,5 +1,6 @@
 import express from 'express';
 import path from 'path';
+import fs from 'fs';
 import { fileURLToPath } from 'url';
 import dotenv from 'dotenv';
 import { fileURLToPath as fileURLToPath2 } from 'url';
@@ -631,7 +632,11 @@ app.post('/api/sync/now', authMiddleware, async (req, res) => {
     const { execSync } = await import('child_process');
     
     try {
-      execSync('python3 /tmp/sync_raioflix.py 2>&1', { 
+      const scriptPath = '/tmp/sync_raioflix.py';
+      const repoScriptPath = new URL('./scripts/sync_raioflix.py', import.meta.url).pathname;
+      const useScript = fs.existsSync(scriptPath) ? scriptPath : repoScriptPath;
+      
+      execSync(`python3 ${useScript} 2>&1`, { 
         timeout: 120000,
         env: { ...process.env, OUTPUT_JSON: '1' }
       });
