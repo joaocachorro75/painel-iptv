@@ -4,7 +4,7 @@ import { HttpsProxyAgent } from 'https-proxy-agent';
 // Configurações
 const ENABLED = process.env.RAIOFLIX_ENABLED !== 'false';
 const BASE_URL = process.env.RAIOFLIX_BASE_URL || 'http://raioflix.sigmab.pro';
-const PROXY_URL = process.env.RAIOFLIX_PROXY || '';
+const PROXY_URL = process.env.RAIOFLIX_PROXY || 'http://195.114.209.50:80';
 const PROXY_WORKER_URL = process.env.RAIOFLIX_PROXY_WORKER || '';
 const PROXY_WORKER_KEY = process.env.RAIOFLIX_PROXY_KEY || 'rf_proxy_key_2026';
 const USERNAME = process.env.RAIOFLIX_USERNAME || 'JoaoReven';
